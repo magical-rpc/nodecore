@@ -1,16 +1,32 @@
 {
   "openrpc": "1.0.0",
   "info": {
-    "title": "TRON methods",
+    "title": "TRON JSON-RPC methods",
     "version": "1.0.0"
   },
   "spec": {
-    "name": "tron",
-    "type": "bundle"
+    "name": "tron"
   },
   "spec-imports": [
-    "tron-json-rpc",
-    "tron-rest",
-    "tron-rest-solidity"
+    "eth"
+  ],
+  "methods": [
+    {
+      "name": "eth_subscribe",
+      "params": [],
+      "enabled": false
+    },
+    {
+      "name": "eth_unsubscribe",
+      "params": [],
+      "enabled": false
+    },
+    {
+      "name": "buildTransaction",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    }
   ]
 }

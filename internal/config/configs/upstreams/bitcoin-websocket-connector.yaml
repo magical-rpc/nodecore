@@ -1,0 +1,10 @@
+upstream-config:
+  upstreams:
+    - id: bitcoin-upstream
+      chain: bitcoin
+      head-connector: json-rpc
+      connectors:
+        - type: json-rpc
+          url: http://127.0.0.1:8332
+        - type: websocket
+          url: ws://127.0.0.1:8333

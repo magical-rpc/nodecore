@@ -173,7 +173,7 @@ func processUpstreamBlocks(availableStates []*protocol.UpstreamState) map[protoc
 
 func compareBlocks(blockType protocol.BlockType, currentBlock, newBlock protocol.Block) protocol.Block {
 	switch blockType {
-	case protocol.FinalizedBlock, protocol.SafeBlock:
+	case protocol.FinalizedBlock:
 		if newBlock.Height > currentBlock.Height {
 			return newBlock
 		}

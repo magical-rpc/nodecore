@@ -7,7 +7,6 @@ import (
 
 	"github.com/drpcorg/nodecore/internal/protocol"
 	"github.com/drpcorg/nodecore/internal/upstreams/connectors"
-	"github.com/drpcorg/nodecore/pkg/methods"
 	"github.com/drpcorg/nodecore/pkg/test_utils/mocks"
 	"github.com/drpcorg/nodecore/pkg/utils"
 	"github.com/stretchr/testify/assert"
@@ -17,8 +16,7 @@ func TestWsConnectorSendUnaryRequestThenReceiveError(t *testing.T) {
 	wsProcessor := mocks.NewWsProcessorMock()
 	wsConnector := connectors.NewWsConnector(wsProcessor)
 	ctx := context.Background()
-	jsonBody := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_call", Params: nil}
-	request := protocol.NewUpstreamJsonRpcRequest("223", jsonBody, false, "")
+	request := protocol.NewUpstreamJsonRpcRequest("223", []byte(`1`), "eth_call", nil, false, nil)
 	err := errors.New("req error")
 
 	wsProcessor.On("SendRpcRequest", ctx, request).Return(nil, err)
@@ -39,8 +37,7 @@ func TestWsConnectorSendUnaryRequestThenResponse(t *testing.T) {
 	wsProcessor := mocks.NewWsProcessorMock()
 	wsConnector := connectors.NewWsConnector(wsProcessor)
 	ctx := context.Background()
-	jsonBody := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_call", Params: nil}
-	request := protocol.NewUpstreamJsonRpcRequest("223", jsonBody, false, "")
+	request := protocol.NewUpstreamJsonRpcRequest("223", []byte(`1`), "eth_call", nil, false, nil)
 	result := []byte("result")
 	wsResponse := &protocol.WsResponse{Message: result}
 
@@ -61,15 +58,14 @@ func TestWsConnectorType(t *testing.T) {
 	wsProcessor := mocks.NewWsProcessorMock()
 	wsConnector := connectors.NewWsConnector(wsProcessor)
 
-	assert.Equal(t, specs.WebsocketConnector, wsConnector.GetType())
+	assert.Equal(t, protocol.WsConnector, wsConnector.GetType())
 }
 
 func TestWsConnectorSendSubThenError(t *testing.T) {
 	wsProcessor := mocks.NewWsProcessorMock()
 	wsConnector := connectors.NewWsConnector(wsProcessor)
 	ctx := context.Background()
-	jsonBody := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_call", Params: nil}
-	request := protocol.NewUpstreamJsonRpcRequest("223", jsonBody, false, "")
+	request := protocol.NewUpstreamJsonRpcRequest("223", []byte(`1`), "eth_call", nil, false, nil)
 	err := errors.New("sub error")
 
 	wsProcessor.On("SendWsRequest", ctx, request).Return((chan *protocol.WsResponse)(nil), "", err)
@@ -85,8 +81,7 @@ func TestWsConnectorSendSubThenResponseChan(t *testing.T) {
 	wsProcessor := mocks.NewWsProcessorMock()
 	wsConnector := connectors.NewWsConnector(wsProcessor)
 	ctx := context.Background()
-	jsonBody := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_call", Params: nil}
-	request := protocol.NewUpstreamJsonRpcRequest("223", jsonBody, false, "")
+	request := protocol.NewUpstreamJsonRpcRequest("223", []byte(`1`), "eth_call", nil, false, nil)
 	responseChan := make(chan *protocol.WsResponse)
 	wsResponse := &protocol.WsResponse{Message: []byte("result")}
 	go func() {

@@ -14,26 +14,23 @@ import (
 )
 
 func TestGenerateRequestHashWithoutParams(t *testing.T) {
-	body := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_call", Params: nil}
-	request := protocol.NewUpstreamJsonRpcRequest("1", body, false, "")
+	request := protocol.NewUpstreamJsonRpcRequest("1", []byte(`1`), "eth_call", nil, false, nil)
 
 	expected := fmt.Sprintf("%x", blake2b.Sum256([]byte(request.Method())))
 	assert.Equal(t, expected, request.RequestHash())
 
-	request = protocol.NewStreamUpstreamJsonRpcRequest("1", body, "")
+	request = protocol.NewStreamUpstreamJsonRpcRequest("1", []byte(`1`), "eth_call", nil, nil)
 
 	assert.Equal(t, expected, request.RequestHash())
 }
 
 func TestGenerateRequestHashWithParams(t *testing.T) {
-	body := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_call", Params: []byte(`"params"`)}
-	request := protocol.NewUpstreamJsonRpcRequest("1", body, false, "")
+	request := protocol.NewUpstreamJsonRpcRequest("1", []byte(`1`), "eth_call", []byte(`"params"`), false, nil)
 
 	expected := fmt.Sprintf("%x", blake2b.Sum256(append([]byte(`"params"`), []byte(request.Method())...)))
 	assert.Equal(t, expected, request.RequestHash())
 
-	body = protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_call", Params: []byte(`"params"`)}
-	request = protocol.NewStreamUpstreamJsonRpcRequest("1", body, "")
+	request = protocol.NewStreamUpstreamJsonRpcRequest("1", []byte(`1`), "eth_call", []byte(`"params"`), nil)
 
 	assert.Equal(t, expected, request.RequestHash())
 }
@@ -46,8 +43,7 @@ func TestNotRequestHashForInternalJsonRpcRequest(t *testing.T) {
 }
 
 func TestHttpRequestParseParamWithoutMethodThenNil(t *testing.T) {
-	body := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_call", Params: nil}
-	request := protocol.NewUpstreamJsonRpcRequest("1", body, false, "")
+	request := protocol.NewUpstreamJsonRpcRequest("1", []byte(`1`), "eth_call", nil, false, nil)
 
 	param := request.ParseParams(context.Background())
 	assert.Nil(t, param)
@@ -55,9 +51,8 @@ func TestHttpRequestParseParamWithoutMethodThenNil(t *testing.T) {
 
 func TestHttpRequestParseParams(t *testing.T) {
 	tagParser := specs.TagParser{ReturnType: specs.BlockNumberType, Path: ".[1]"}
-	method := specs.MethodWithSettings("eth_call", []specs.ApiConnectorType{specs.JsonRpcConnector}, nil, &tagParser)
-	request, err := protocol.NewUpstreamJsonRpcRequestWithSpecMethod("eth_call", []any{false, "0x4"}, method)
-	assert.NoError(t, err)
+	method := specs.MethodWithSettings("eth_call", nil, &tagParser)
+	request := protocol.NewUpstreamJsonRpcRequest("1", []byte(`1`), "eth_call", []byte(`[false, "0x4"]`), false, method)
 
 	param := request.ParseParams(context.Background())
 	assert.IsType(t, &specs.BlockNumberParam{}, param)
@@ -66,9 +61,8 @@ func TestHttpRequestParseParams(t *testing.T) {
 
 func TestUpstreamRequestParseAndModifyParams(t *testing.T) {
 	tagParser := specs.TagParser{ReturnType: specs.StringType, Path: ".[2].hash"}
-	method := specs.MethodWithSettings("eth_call", []specs.ApiConnectorType{specs.JsonRpcConnector}, &specs.MethodSettings{Sticky: &specs.Sticky{SendSticky: true}}, &tagParser)
-	request, err := protocol.NewUpstreamJsonRpcRequestWithSpecMethod("eth_call", []any{false, "0x4", map[string]string{"hash": "235"}}, method)
-	assert.NoError(t, err)
+	method := specs.MethodWithSettings("eth_call", &specs.MethodSettings{Sticky: &specs.Sticky{SendSticky: true}}, &tagParser)
+	request := protocol.NewUpstreamJsonRpcRequest("1", []byte(`1`), "eth_call", []byte(`[false, "0x4", {"hash": "235"}]`), false, method)
 
 	param := request.ParseParams(context.Background())
 	assert.IsType(t, &specs.StringParam{}, param)

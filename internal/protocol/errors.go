@@ -10,7 +10,6 @@ const (
 	WrongChain
 	CtxErrorCode
 	WsTotalFailure
-	NoApiConnectors
 	ClientErrorCode         = 400
 	AuthErrorCode           = 403
 	RequestTimeout          = 408
@@ -87,13 +86,6 @@ func CtxError(cause error) *ResponseError {
 	}
 }
 
-func NoApiConnectorsError(method string) *ResponseError {
-	return &ResponseError{
-		Message: fmt.Sprintf("no suitable api connectors to process method %s", method),
-		Code:    NoApiConnectors,
-	}
-}
-
 func ServerError() *ResponseError {
 	return &ResponseError{
 		Message: "internal server error",
@@ -111,16 +103,6 @@ func IncorrectResponseBodyError(cause error) *ResponseError {
 func NoAvailableUpstreamsError() *ResponseError {
 	return &ResponseError{
 		Message: "no available upstreams to process a request",
-		Code:    NoAvailableUpstreams,
-	}
-}
-
-func NoAvailableUpstreamsErrorWithCause(cause string) *ResponseError {
-	if cause == "" {
-		return NoAvailableUpstreamsError()
-	}
-	return &ResponseError{
-		Message: fmt.Sprintf("no available upstreams to process a request. Cause - %s", cause),
 		Code:    NoAvailableUpstreams,
 	}
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/drpcorg/nodecore/internal/protocol"
 	"github.com/drpcorg/nodecore/internal/upstreams/ws"
-	"github.com/drpcorg/nodecore/pkg/methods"
 	"github.com/drpcorg/nodecore/pkg/utils"
 )
 
@@ -44,8 +43,8 @@ func (w *WsConnector) Subscribe(ctx context.Context, request protocol.RequestHol
 	return protocol.NewJsonRpcWsUpstreamResponse(respChan, subOpId), nil
 }
 
-func (w *WsConnector) GetType() specs.ApiConnectorType {
-	return specs.WebsocketConnector
+func (w *WsConnector) GetType() protocol.ApiConnectorType {
+	return protocol.WsConnector
 }
 
 func (w *WsConnector) SubscribeStates(name string) *utils.Subscription[protocol.SubscribeConnectorState] {

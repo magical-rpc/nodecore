@@ -20,12 +20,10 @@ type UpstreamStrategy interface {
 }
 
 type SpecificOrderUpstreamStrategy struct {
-	upstreamIds        []string
-	chainSupervisor    upstreams.ChainSupervisor
-	selectedUpstreams  mapset.Set[string]
-	additionalMatchers []Matcher
-	order              UpstreamOrder
-	mu                 sync.Mutex
+	upstreamIds       []string
+	chainSupervisor   upstreams.ChainSupervisor
+	selectedUpstreams mapset.Set[string]
+	mu                sync.Mutex
 }
 
 func (s *SpecificOrderUpstreamStrategy) SelectUpstream(request protocol.RequestHolder) (string, error) {
@@ -33,12 +31,12 @@ func (s *SpecificOrderUpstreamStrategy) SelectUpstream(request protocol.RequestH
 		return "", protocol.NoAvailableUpstreamsError()
 	}
 
-	selectedUpstream, currentReason, trace := filterUpstreams(&s.mu, request, s.upstreamIds, s.chainSupervisor, s.selectedUpstreams, s.additionalMatchers, s.order)
+	selectedUpstream, currentReason := filterUpstreams(&s.mu, request, s.upstreamIds, s.chainSupervisor, s.selectedUpstreams, nil)
 	if selectedUpstream != "" {
 		return selectedUpstream, nil
 	}
 
-	return "", selectionError(currentReason, trace)
+	return "", selectionError(currentReason)
 }
 
 func NewSpecificOrderUpstreamStrategy(upstreamIds []string, chainSupervisor upstreams.ChainSupervisor) *SpecificOrderUpstreamStrategy {
@@ -56,7 +54,6 @@ type RatingStrategy struct {
 	selectedUpstreams  mapset.Set[string]
 	ups                []string
 	additionalMatchers []Matcher
-	order              UpstreamOrder
 	mu                 sync.Mutex
 }
 
@@ -81,12 +78,12 @@ func (r *RatingStrategy) SelectUpstream(request protocol.RequestHolder) (string,
 		return "", protocol.NoAvailableUpstreamsError()
 	}
 
-	selectedUpstream, currentReason, trace := filterUpstreams(&r.mu, request, r.ups, r.chainSupervisor, r.selectedUpstreams, r.additionalMatchers, r.order)
+	selectedUpstream, currentReason := filterUpstreams(&r.mu, request, r.ups, r.chainSupervisor, r.selectedUpstreams, r.additionalMatchers)
 	if selectedUpstream != "" {
 		return selectedUpstream, nil
 	}
 
-	return "", selectionError(currentReason, trace)
+	return "", selectionError(currentReason)
 }
 
 var _ UpstreamStrategy = (*RatingStrategy)(nil)
@@ -94,11 +91,9 @@ var _ UpstreamStrategy = (*RatingStrategy)(nil)
 var index = atomic.Uint64{}
 
 type BaseStrategy struct {
-	selectedUpstreams  mapset.Set[string]
-	chainSupervisor    upstreams.ChainSupervisor
-	additionalMatchers []Matcher
-	order              UpstreamOrder
-	mu                 sync.Mutex
+	selectedUpstreams mapset.Set[string]
+	chainSupervisor   upstreams.ChainSupervisor
+	mu                sync.Mutex
 }
 
 func NewBaseStrategy(chainSupervisor upstreams.ChainSupervisor) *BaseStrategy {
@@ -106,28 +101,6 @@ func NewBaseStrategy(chainSupervisor upstreams.ChainSupervisor) *BaseStrategy {
 		selectedUpstreams: mapset.NewThreadUnsafeSet[string](),
 		chainSupervisor:   chainSupervisor,
 	}
-}
-
-func NewBaseStrategyWithOptions(chainSupervisor upstreams.ChainSupervisor, additionalMatchers []Matcher, order UpstreamOrder) *BaseStrategy {
-	strategy := NewBaseStrategy(chainSupervisor)
-	strategy.additionalMatchers = additionalMatchers
-	strategy.order = order
-	return strategy
-}
-
-func (r *RatingStrategy) WithOrder(order UpstreamOrder) *RatingStrategy {
-	r.order = order
-	return r
-}
-
-func (s *SpecificOrderUpstreamStrategy) WithOrder(order UpstreamOrder) *SpecificOrderUpstreamStrategy {
-	s.order = order
-	return s
-}
-
-func (s *SpecificOrderUpstreamStrategy) WithAdditionalMatchers(additionalMatchers []Matcher) *SpecificOrderUpstreamStrategy {
-	s.additionalMatchers = additionalMatchers
-	return s
 }
 
 func (b *BaseStrategy) SelectUpstream(request protocol.RequestHolder) (string, error) {
@@ -139,12 +112,12 @@ func (b *BaseStrategy) SelectUpstream(request protocol.RequestHolder) (string, e
 	pos := index.Add(1) % uint64(len(upstreamIds))
 	upstreamIds = append(upstreamIds[pos:], upstreamIds[:pos]...)
 
-	selectedUpstream, currentReason, trace := filterUpstreams(&b.mu, request, upstreamIds, b.chainSupervisor, b.selectedUpstreams, b.additionalMatchers, b.order)
+	selectedUpstream, currentReason := filterUpstreams(&b.mu, request, upstreamIds, b.chainSupervisor, b.selectedUpstreams, nil)
 	if selectedUpstream != "" {
 		return selectedUpstream, nil
 	}
 
-	return "", selectionError(currentReason, trace)
+	return "", selectionError(currentReason)
 }
 
 func filterUpstreams(
@@ -154,13 +127,8 @@ func filterUpstreams(
 	chainSupervisor upstreams.ChainSupervisor,
 	selectedUpstreams mapset.Set[string],
 	additionalMatchers []Matcher,
-	order UpstreamOrder,
-) (string, MatchResponse, *UpstreamsMatchTrace) {
-	var currentReason MatchResponse
-	trace := &UpstreamsMatchTrace{}
-	if order != nil {
-		upstreamIds = order(upstreamIds)
-	}
+) (string, MatchResponse) {
+	var currentReason MatchResponse = AvailabilityResponse{}
 	matchers := lo.Ternary(len(additionalMatchers) > 0, additionalMatchers, make([]Matcher, 0))
 	matchers = append(matchers, NewStatusMatcher(), NewMethodMatcher(request.Method()))
 	if request.IsSubscribe() {
@@ -174,7 +142,6 @@ func filterUpstreams(
 			continue
 		}
 		matched := multiMatcher.Match(upstreamIds[i], upstreamState)
-		trace.Add(upstreamIds[i], matched)
 
 		upstreamMatched, newReason := processMatchedResponse(mu, matched, currentReason, selectedUpstreams, upstreamIds[i], upstreamState, request)
 		if upstreamMatched {
@@ -183,16 +150,13 @@ func filterUpstreams(
 				allowed = upstreamState.AutoTuneRateLimiter.Allow()
 			}
 			if allowed {
-				return upstreamIds[i], nil, trace
-			}
-			if currentReason == nil || (RateLimiterResponse{}).Type() < currentReason.Type() {
-				currentReason = RateLimiterResponse{}
+				return upstreamIds[i], nil
 			}
 		} else if newReason != nil {
 			currentReason = newReason
 		}
 	}
-	return "", currentReason, trace
+	return "", currentReason
 }
 
 func processMatchedResponse(
@@ -220,7 +184,7 @@ func processMatchedResponse(
 			selectedUpstreams.Add(upstreamId)
 			return true, nil
 		} else {
-			if currentReason == nil || matched.Type() < currentReason.Type() {
+			if matched.Type() < currentReason.Type() {
 				return false, matched
 			}
 		}
@@ -228,19 +192,13 @@ func processMatchedResponse(
 	return false, nil
 }
 
-func selectionError(matchResponse MatchResponse, trace *UpstreamsMatchTrace) error {
-	if matchResponse == nil {
-		return protocol.NoAvailableUpstreamsError()
-	}
+func selectionError(matchResponse MatchResponse) error {
 	switch m := matchResponse.(type) {
 	case MethodResponse:
 		return protocol.NotSupportedMethodError(m.method)
 	case RateLimiterResponse:
 		return protocol.RateLimitError()
 	default:
-		if matchResponse.Type() == SelectorType && trace != nil {
-			return protocol.NoAvailableUpstreamsErrorWithCause(trace.Cause())
-		}
 		return protocol.NoAvailableUpstreamsError()
 	}
 }

@@ -75,6 +75,22 @@ curl --location 'http://localhost:9090/queries/ethereum' \
 }'
 ```
 
+After configuring matching upstreams, Bitcoin and Tron can be queried through their chain endpoints as well:
+
+```bash
+curl --location 'http://localhost:9090/queries/bitcoin' \
+--header 'Content-Type: application/json' \
+--data '{"id":1,"jsonrpc":"2.0","method":"getblockcount","params":[]}'
+```
+
+```bash
+curl --location 'http://localhost:9090/queries/tron' \
+--header 'Content-Type: application/json' \
+--data '{"id":1,"jsonrpc":"2.0","method":"eth_blockNumber","params":[]}'
+```
+
+Bitcoin exposes node-safe public RPC methods by default. Wallet and admin methods can still be exposed per upstream through the existing `methods.enable` config.
+
 # Documentation
 
 For detailed documentation [see](docs/nodecore)
@@ -105,5 +121,3 @@ For complete setup instructions, security considerations, and troubleshooting, s
 
 The Helm chart and instructions for deploying **nodecore** to Kubernetes are located in [`chart/nodecore`](./chart/nodecore) in this repository 
 and are published as an OCI artifact to the GitHub Container Registry (GHCR).
-
-

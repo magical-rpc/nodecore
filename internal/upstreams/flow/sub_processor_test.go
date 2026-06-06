@@ -15,11 +15,15 @@ import (
 )
 
 func testEthSubscribeRequest() protocol.RequestHolder {
-	// Load real specs so eth_subscribe resolves to a Method with the right
-	// subscription settings; the test asserts on the production-shaped id.
-	_ = specs.NewMethodSpecLoader().Load()
-	body := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_subscribe", Params: []byte(`["newHeads"]`)}
-	return protocol.NewUpstreamJsonRpcRequest("223", body, false, "eth")
+	specMethod := &specs.Method{
+		Name: "eth_subscribe",
+		Subscription: &specs.Subscription{
+			IsSubscribe: true,
+			Method:      "eth_subscription",
+			UnsubMethod: "eth_unsubscribe",
+		},
+	}
+	return protocol.NewUpstreamJsonRpcRequest("223", []byte(`1`), "eth_subscribe", []byte(`["newHeads"]`), false, specMethod)
 }
 
 func TestSubscriptionRequestProcessorAndCantSelectUpstreamThenError(t *testing.T) {

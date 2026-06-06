@@ -5,9 +5,7 @@
     "version": "1.0.0"
   },
   "spec": {
-    "name": "linea",
-    "api-connectors": ["json-rpc", "websocket"],
-    "type": "plain"
+    "name": "linea"
   },
   "spec-imports": [
     "eth"

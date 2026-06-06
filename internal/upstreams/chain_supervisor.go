@@ -167,6 +167,11 @@ func (b *BaseChainSupervisor) processEvents() {
 						b.updateHead(event.Id, &protocol.HeadUpstreamEvent{Status: protocol.Unavailable, Head: upHead})
 					}
 				case *protocol.HeadUpstreamEvent:
+					if eventType.State != nil {
+						availabilityMetric.WithLabelValues(b.chain.String(), event.Id).Set(float64(eventType.State.Status))
+						b.upstreamStates.Store(event.Id, eventType.State)
+						b.updateState()
+					}
 					b.updateHead(event.Id, eventType)
 				case *protocol.StateUpstreamEvent:
 					availabilityMetric.WithLabelValues(b.chain.String(), event.Id).Set(float64(eventType.State.Status))
@@ -247,10 +252,7 @@ func (b *BaseChainSupervisor) calculateHeadLags() {
 	state := b.state.Load()
 
 	b.upstreamStates.Range(func(key string, val *protocol.UpstreamState) bool {
-		var headLag uint64
-		if state.HeadData.Head.Height >= val.HeadData.Height {
-			headLag = state.HeadData.Head.Height - val.HeadData.Height
-		}
+		headLag := state.HeadData.Head.Height - val.HeadData.Height
 		b.tracker.GetChainDimensions(b.chain, key).TrackHeadLag(headLag)
 		return true
 	})

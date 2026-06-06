@@ -12,7 +12,7 @@ func TestLoadSpecAndCheckGroupsAndDefaultParams(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/full")).Load()
 	assert.NoError(t, err)
 
-	spec := specs.GetSpecMethodsByConnectors("test", nil)
+	spec := specs.GetSpecMethods("test")
 
 	defaultGroup, ok := spec[specs.DefaultMethodGroup]
 	assert.True(t, ok)
@@ -44,7 +44,7 @@ func TestLoadSpecAndCheckCacheableAndEnabledParams(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/full")).Load()
 	assert.NoError(t, err)
 
-	spec := specs.GetSpecMethodsByConnectors("another_test", nil)
+	spec := specs.GetSpecMethods("another_test")
 
 	defaultGroup, ok := spec[specs.DefaultMethodGroup]
 	assert.True(t, ok)
@@ -70,13 +70,13 @@ func TestLoadSpecEmptyDirThenError(t *testing.T) {
 func TestLoadSpecEmptyNameThenError(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/empty_name")).Load()
 
-	assert.ErrorContains(t, err, "couldn't read method specs: file - 'spec1.json', spec validation error: missing spec name")
+	assert.ErrorContains(t, err, "couldn't read method specs: empty spec name, file - 'spec1.json'")
 }
 
 func TestLoadSpecEmptySpecDataThenError(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/empty_spec_data")).Load()
 
-	assert.ErrorContains(t, err, "couldn't read method specs: file - 'spec1.json', spec validation error: missing spec data")
+	assert.ErrorContains(t, err, "couldn't read method specs: empty spec name, file - 'spec1.json'")
 }
 
 func TestLoadSpecEmptyMethodNameThenError(t *testing.T) {
@@ -120,10 +120,10 @@ func TestLoadSpecMergeMethods(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	spec1 := specs.GetSpecMethodsByConnectors("another", nil)
+	spec1 := specs.GetSpecMethods("another")
 	assert.Equal(t, 5, len(spec1))
 
-	spec2 := specs.GetSpecMethodsByConnectors("test", nil)
+	spec2 := specs.GetSpecMethods("test")
 	assert.Equal(t, 6, len(spec2))
 
 	assert.Equal(t, spec1["trace"]["test"], spec2["trace"]["test"])
@@ -145,21 +145,21 @@ func TestLoadSpecMergeMethods(t *testing.T) {
 	assert.False(t, method.IsCacheable())
 }
 
-func TestLoadSpecNestedImports(t *testing.T) {
-	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/nested_imports")).Load()
-
+func TestEmbeddedBitcoinAndTronSpecs(t *testing.T) {
+	err := specs.NewMethodSpecLoader().Load()
 	assert.NoError(t, err)
 
-	bundle := specs.GetSpecMethodsByConnectors("bundle", nil)
-	assert.Len(t, bundle[specs.DefaultMethodGroup], 3)
-	assert.Contains(t, bundle["trace"], "trace_call")
-	assert.Contains(t, bundle[specs.DefaultMethodGroup], "net_version")
-	assert.Contains(t, bundle[specs.SubMethodGroup], "eth_subscribe")
+	assert.NotNil(t, specs.GetSpecMethod("bitcoin", "getblockcount"))
+	assert.NotNil(t, specs.GetSpecMethod("bitcoin", "getblockchaininfo"))
+	assert.NotNil(t, specs.GetSpecMethod("bitcoin", "sendrawtransaction"))
+	assert.NotNil(t, specs.GetSpecMethod("bitcoin", "testmempoolaccept"))
+	assert.Nil(t, specs.GetSpecMethod("bitcoin", "getwalletinfo"))
+	assert.Nil(t, specs.GetSpecMethod("bitcoin", "stop"))
+	assert.Nil(t, specs.GetSpecMethod("bitcoin", "logging"))
+	assert.Nil(t, specs.GetSpecMethod("bitcoin", "signrawtransactionwithkey"))
 
-	child := specs.GetSpecMethodsByConnectors("child", nil)
-	assert.Len(t, child["trace"], 1)
-	assert.Contains(t, child["trace"], "child_trace")
-	assert.NotContains(t, child["trace"], "trace_call")
-	assert.Contains(t, child[specs.DefaultMethodGroup], "net_version")
-	assert.Contains(t, child[specs.SubMethodGroup], "eth_subscribe")
+	assert.NotNil(t, specs.GetSpecMethod("tron", "buildTransaction"))
+	assert.NotNil(t, specs.GetSpecMethod("tron", "eth_blockNumber"))
+	assert.Nil(t, specs.GetSpecMethod("tron", "eth_subscribe"))
+	assert.Nil(t, specs.GetSpecMethod("tron", "eth_unsubscribe"))
 }

@@ -9,17 +9,6 @@ type AbstractUpstreamStateEvent interface {
 	Same(state UpstreamState) bool
 }
 
-type InitUpstreamStateEvent struct {
-}
-
-func (i *InitUpstreamStateEvent) ProcessEvent(state UpstreamState) UpstreamState {
-	return state
-}
-
-func (i *InitUpstreamStateEvent) Same(state UpstreamState) bool {
-	return false
-}
-
 type LowerBoundUpstreamStateEvent struct {
 	Data LowerBoundData
 }
@@ -183,4 +172,3 @@ var _ AbstractUpstreamStateEvent = (*ValidUpstreamStateEvent)(nil)
 var _ AbstractUpstreamStateEvent = (*FatalErrorUpstreamStateEvent)(nil)
 var _ AbstractUpstreamStateEvent = (*StatusUpstreamStateEvent)(nil)
 var _ AbstractUpstreamStateEvent = (*LowerBoundUpstreamStateEvent)(nil)
-var _ AbstractUpstreamStateEvent = (*InitUpstreamStateEvent)(nil)

@@ -9,3 +9,17 @@ upstream-config:
       connectors:
         - type: json-rpc
           url: https://eth.drpc.org
+
+    - id: drpc-tron
+      chain: tron
+      poll-interval: 3s
+      connectors:
+        - type: json-rpc
+          url: https://lb.drpc.live/tron/AktcYO2n5Ed6qZj4kFIG_Nk2drStXDMR8bcjIqM_iWcm
+
+    - id: drpc-bitcoin
+      chain: bitcoin
+      poll-interval: 30s
+      connectors:
+        - type: json-rpc
+          url: https://lb.drpc.live/bitcoin/AktcYO2n5Ed6qZj4kFIG_Nk2drStXDMR8bcjIqM_iWcm

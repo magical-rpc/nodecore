@@ -7,9 +7,9 @@ import (
 
 	"github.com/drpcorg/nodecore/internal/config"
 	"github.com/drpcorg/nodecore/internal/protocol"
+	specific "github.com/drpcorg/nodecore/internal/upstreams/chains_specific"
 	"github.com/drpcorg/nodecore/internal/upstreams/connectors"
 	"github.com/drpcorg/nodecore/pkg/chains"
-	"github.com/drpcorg/nodecore/pkg/methods"
 	"github.com/drpcorg/nodecore/pkg/utils"
 	"github.com/rs/zerolog/log"
 )
@@ -41,7 +41,7 @@ func NewBaseHeadProcessor(
 	ctx context.Context,
 	upConfig *config.Upstream,
 	headConnector connectors.ApiConnector,
-	specific BlockChainSpecific,
+	specific specific.ChainSpecific,
 ) *BaseHeadProcessor {
 	configuredChain := chains.GetChain(upConfig.ChainName)
 	head := createHead(ctx, upConfig.Id, upConfig.PollInterval, headConnector, specific, upConfig.Options)
@@ -131,13 +131,13 @@ func createHead(
 	ctx context.Context,
 	id string, pollInterval time.Duration,
 	headConnector connectors.ApiConnector,
-	specific BlockChainSpecific,
+	specific specific.ChainSpecific,
 	options *chains.Options,
 ) Head {
 	switch headConnector.GetType() {
-	case specs.JsonRpcConnector, specs.RestConnector:
+	case protocol.JsonRpcConnector, protocol.RestConnector:
 		return NewRpcHead(ctx, id, options.InternalTimeout, pollInterval, specific)
-	case specs.WebsocketConnector:
+	case protocol.WsConnector:
 		return NewSubHead(ctx, id, options.InternalTimeout, headConnector, specific)
 	default:
 		return nil

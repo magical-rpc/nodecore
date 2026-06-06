@@ -5,9 +5,7 @@
     "version": "1.0.0"
   },
   "spec": {
-    "name": "zksync",
-    "api-connectors": ["json-rpc", "websocket"],
-    "type": "plain"
+    "name": "zksync"
   },
   "spec-imports": [
     "eth"

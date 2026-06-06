@@ -274,46 +274,41 @@ func TestChainSupervisorUpdateHeadPublishesWrapperForNonEmptyChosenHead(t *testi
 	fcMock.AssertExpectations(t)
 }
 
-func TestChainSupervisorUpdateHead_MergedHeadGoesDownOnReorg(t *testing.T) {
-	chainSupervisor := upstreams.NewBaseChainSupervisor(context.Background(), chains.ARBITRUM, fork_choice.NewHeightForkChoice(), nil)
+func TestChainSupervisorHeadEventWithStateRegistersUpstream(t *testing.T) {
+	bitcoinChain := chains.GetChain("bitcoin").Chain
+	chainSupervisor := upstreams.NewBaseChainSupervisor(context.Background(), bitcoinChain, fork_choice.NewHeightForkChoice(), nil)
 	methodsMock := mocks.NewMethodsMock()
-	methodsMock.On("GetSupportedMethods").Return(mapset.NewThreadUnsafeSet[string]("method"))
+	methodsMock.On("GetSupportedMethods").Return(mapset.NewThreadUnsafeSet[string]("getblockcount"))
+	methodsMock.On("HasMethod", "getblockcount").Return(true)
 
 	go chainSupervisor.Start()
 
-	high := protocol.NewBlock(200, 0, blockchain.NewHashIdFromString("hi"), blockchain.NewHashIdFromString("hi-parent"))
-	chainSupervisor.PublishUpstreamEvent(test_utils.CreateEvent("id", protocol.Available, high, methodsMock))
-	publishHeadEvent(chainSupervisor, "id", protocol.Available, high)
-	assertEventuallyEqual(t, high, func() any { return chainSupervisor.GetChainState().HeadData.Head })
+	head := protocol.NewBlockWithHeight(100)
+	state := protocol.DefaultUpstreamState(
+		methodsMock,
+		mapset.NewThreadUnsafeSet[protocol.Cap](),
+		"00001",
+		nil,
+		nil,
+	)
+	state.HeadData = head
 
-	// The same upstream reports a lower-height head — for example after a primary-peer
-	// switch surfacing a shorter fork, or an ungraceful resubscribe. The merged head
-	// must follow it down, not stay stuck on the previous high.
-	low := protocol.NewBlock(150, 0, blockchain.NewHashIdFromString("lo"), blockchain.NewHashIdFromString("lo-parent"))
-	publishHeadEvent(chainSupervisor, "id", protocol.Available, low)
-	assertEventuallyEqual(t, low, func() any { return chainSupervisor.GetChainState().HeadData.Head })
-}
+	chainSupervisor.PublishUpstreamEvent(protocol.UpstreamEvent{
+		Id:    "btc-1",
+		Chain: bitcoinChain,
+		EventType: &protocol.HeadUpstreamEvent{
+			Status: protocol.Available,
+			Head:   head,
+			State:  &state,
+		},
+	})
 
-func TestChainSupervisorHeadLag_NoUnderflowWhenMergedHeadLower(t *testing.T) {
-	tracker := dimensions.NewBaseDimensionTracker()
-	chainSupervisor := upstreams.NewBaseChainSupervisor(context.Background(), chains.ARBITRUM, fork_choice.NewHeightForkChoice(), tracker)
-	methodsMock := mocks.NewMethodsMock()
-	methodsMock.On("GetSupportedMethods").Return(mapset.NewThreadUnsafeSet[string]("method"))
-
-	go chainSupervisor.Start()
-
-	// The upstream's stored state advertises height=300, but the merged head only
-	// reaches 100 (e.g. the higher head was lost on reorg before this upstream's
-	// next StateUpstreamEvent landed). headLag would underflow without the guard.
-	chainSupervisor.PublishUpstreamEvent(test_utils.CreateEvent("id", protocol.Available, protocol.NewBlockWithHeight(300), methodsMock))
-	publishHeadEvent(chainSupervisor, "id", protocol.Available, protocol.NewBlockWithHeight(100))
-
-	// Wait for the supervisor to actually process the head event, then verify that
-	// calculateHeadLags clamped the lag to 0 rather than producing an underflowed
-	// near-MaxUint64 value.
 	assert.Eventually(t, func() bool {
-		return chainSupervisor.GetChainState().HeadData.Head.Height == 100 &&
-			tracker.GetChainDimensions(chains.ARBITRUM, "id").GetHeadLag() == 0
+		upstreamState := chainSupervisor.GetUpstreamState("btc-1")
+		return upstreamState != nil &&
+			upstreamState.Status == protocol.Available &&
+			upstreamState.UpstreamMethods.HasMethod("getblockcount") &&
+			chainSupervisor.GetChainState().HeadData.Head.Equals(head)
 	}, eventuallyWait, eventuallyTick)
 }
 

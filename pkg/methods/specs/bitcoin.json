@@ -1,0 +1,350 @@
+{
+  "openrpc": "1.0.0",
+  "info": {
+    "title": "Bitcoin Core JSON-RPC methods",
+    "version": "1.0.0"
+  },
+  "spec": {
+    "name": "bitcoin"
+  },
+  "methods": [
+    {
+      "name": "getbestblockhash",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getblock",
+      "params": []
+    },
+    {
+      "name": "getblockchaininfo",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getblockcount",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getblockfilter",
+      "params": []
+    },
+    {
+      "name": "getblockhash",
+      "params": []
+    },
+    {
+      "name": "getblockheader",
+      "params": []
+    },
+    {
+      "name": "getblockstats",
+      "params": []
+    },
+    {
+      "name": "getchaintips",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getchaintxstats",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getdeploymentinfo",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getdifficulty",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getmempoolancestors",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getmempooldescendants",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getmempoolentry",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getmempoolinfo",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getrawmempool",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "gettxout",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "gettxoutproof",
+      "params": []
+    },
+    {
+      "name": "gettxoutsetinfo",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "gettxspendingprevout",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "verifytxoutproof",
+      "params": []
+    },
+    {
+      "name": "getconnectioncount",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getnettotals",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getnetworkinfo",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getnodeaddresses",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getpeerinfo",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "listbanned",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "analyzepsbt",
+      "params": []
+    },
+    {
+      "name": "combinepsbt",
+      "params": []
+    },
+    {
+      "name": "combinerawtransaction",
+      "params": []
+    },
+    {
+      "name": "converttopsbt",
+      "params": []
+    },
+    {
+      "name": "createpsbt",
+      "params": []
+    },
+    {
+      "name": "createrawtransaction",
+      "params": []
+    },
+    {
+      "name": "decodepsbt",
+      "params": []
+    },
+    {
+      "name": "decoderawtransaction",
+      "params": []
+    },
+    {
+      "name": "decodescript",
+      "params": []
+    },
+    {
+      "name": "finalizepsbt",
+      "params": []
+    },
+    {
+      "name": "getrawtransaction",
+      "params": []
+    },
+    {
+      "name": "joinpsbts",
+      "params": []
+    },
+    {
+      "name": "sendrawtransaction",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "submitpackage",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "testmempoolaccept",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "utxoupdatepsbt",
+      "params": []
+    },
+    {
+      "name": "createmultisig",
+      "params": []
+    },
+    {
+      "name": "deriveaddresses",
+      "params": []
+    },
+    {
+      "name": "estimatesmartfee",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getdescriptorinfo",
+      "params": []
+    },
+    {
+      "name": "getindexinfo",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "validateaddress",
+      "params": []
+    },
+    {
+      "name": "verifymessage",
+      "params": []
+    },
+    {
+      "name": "getmemoryinfo",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getrpcinfo",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "help",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "uptime",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getblocktemplate",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getmininginfo",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getnetworkhashps",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    },
+    {
+      "name": "getzmqnotifications",
+      "params": [],
+      "settings": {
+        "cacheable": false
+      }
+    }
+  ]
+}

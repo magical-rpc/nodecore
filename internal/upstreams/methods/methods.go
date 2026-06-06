@@ -21,12 +21,8 @@ type UpstreamMethods struct {
 	methodNames      mapset.Set[string]
 }
 
-func NewUpstreamMethods(
-	methodSpecName string,
-	methodsConfig *config.MethodsConfig,
-	apiConnectorTypes []specs.ApiConnectorType,
-) (*UpstreamMethods, error) {
-	specMethods := specs.GetSpecMethodsByConnectors(methodSpecName, apiConnectorTypes)
+func NewUpstreamMethods(methodSpecName string, methodsConfig *config.MethodsConfig) (*UpstreamMethods, error) {
+	specMethods := specs.GetSpecMethods(methodSpecName)
 	if specMethods == nil {
 		return nil, fmt.Errorf("no method spec with name '%s'", methodSpecName)
 	}
@@ -58,7 +54,7 @@ func NewUpstreamMethods(
 				availableMethods[enabled] = method
 			} else {
 				// if there is no such method in the chain spec then add it as a default one
-				availableMethods[enabled] = specs.DefaultMethodWithConnectorTypes(enabled, specs.GetSpecConnectors(methodSpecName))
+				availableMethods[enabled] = specs.DefaultMethod(enabled)
 			}
 		}
 	}

@@ -5,9 +5,7 @@
     "version": "1.0.0"
   },
   "spec": {
-    "name": "sei",
-    "api-connectors": ["json-rpc", "websocket"],
-    "type": "plain"
+    "name": "sei"
   },
   "spec-imports": [
     "eth"

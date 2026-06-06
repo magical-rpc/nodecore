@@ -17,13 +17,11 @@ import (
 func TestLocalRequestProcessorUnsubscribe(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs")).Load()
 	assert.NoError(t, err)
-
 	subCtx := flow.NewSubCtx()
 	processor := flow.NewLocalRequestProcessor(chains.ALEPHZERO, subCtx)
 	subId := "0x112"
 	ctx, cancel := context.WithCancel(context.Background())
-	jsonBody := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_unsubscribe", Params: []byte(fmt.Sprintf(`["%s"]`, subId))}
-	request := protocol.NewUpstreamJsonRpcRequest("223", jsonBody, false, "eth")
+	request := protocol.NewUpstreamJsonRpcRequest("223", []byte(`1`), "eth_unsubscribe", []byte(fmt.Sprintf(`["%s"]`, subId)), false, nil)
 	subCtx.AddSub(subId, cancel)
 
 	response := processor.ProcessRequest(ctx, nil, request)
@@ -44,13 +42,11 @@ func TestLocalRequestProcessorUnsubscribe(t *testing.T) {
 func TestLocalRequestProcessorCantParseUnsubReqThenError(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs")).Load()
 	assert.NoError(t, err)
-
 	subCtx := flow.NewSubCtx()
 	processor := flow.NewLocalRequestProcessor(chains.POLYGON, subCtx)
 	subId := "0x112"
 	ctx, cancel := context.WithCancel(context.Background())
-	jsonBody := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_unsubscribe"}
-	request := protocol.NewUpstreamJsonRpcRequest("223", jsonBody, false, "eth")
+	request := protocol.NewUpstreamJsonRpcRequest("223", []byte(`1`), "eth_unsubscribe", nil, false, nil)
 	subCtx.AddSub(subId, cancel)
 
 	response := processor.ProcessRequest(ctx, nil, request)
@@ -90,11 +86,9 @@ func TestLocalRequestProcessorNoLocalHandlerError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(te *testing.T) {
-
 			processor := flow.NewLocalRequestProcessor(chains.ETHEREUM, nil)
 			ctx := context.Background()
-			jsonBody := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: test.method}
-			request := protocol.NewUpstreamJsonRpcRequest("223", jsonBody, false, "eth")
+			request := protocol.NewUpstreamJsonRpcRequest("223", []byte(`1`), test.method, nil, false, nil)
 
 			response := processor.ProcessRequest(ctx, nil, request)
 
@@ -134,11 +128,9 @@ func TestLocalRequestProcessorChainIdAndNetVersion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(te *testing.T) {
-
 			processor := flow.NewLocalRequestProcessor(chains.ETHEREUM, nil)
 			ctx := context.Background()
-			jsonBody := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: test.method}
-			request := protocol.NewUpstreamJsonRpcRequest("223", jsonBody, false, "eth")
+			request := protocol.NewUpstreamJsonRpcRequest("223", []byte(`1`), test.method, nil, false, nil)
 
 			response := processor.ProcessRequest(ctx, nil, request)
 

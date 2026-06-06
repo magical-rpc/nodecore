@@ -13,7 +13,6 @@ import (
 	"github.com/drpcorg/nodecore/internal/protocol"
 	"github.com/drpcorg/nodecore/internal/upstreams"
 	"github.com/drpcorg/nodecore/pkg/chains"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -67,23 +66,14 @@ func (s *SubscriptionRequestProcessor) ProcessRequest(
 
 		// however there could be other connectors as well
 		// like http connector to support SSE
-		wsConn := getMethodConnector(upstream, request.SpecMethod())
-		if wsConn == nil {
-			response = &protocol.ResponseHolderWrapper{
-				UpstreamId: NoUpstream,
-				RequestId:  request.Id(),
-				Response:   protocol.NewTotalFailure(request, protocol.NoApiConnectorsError(request.Method())),
-			}
-			responses <- response
-			return
-		}
+		wsConn := upstream.GetConnector(protocol.WsConnector)
 
 		execCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
 		var stateChan chan protocol.SubscribeConnectorState
 		connectorStatesSub := wsConn.SubscribeStates(
-			fmt.Sprintf("%s_%s_request_%s_%d", upstream.GetId(), request.Method(), uuid.NewString(), time.Now().UnixNano()),
+			fmt.Sprintf("%s_%s_request_%s_%d", upstream.GetId(), request.Method(), request.Id(), time.Now().UnixNano()),
 		)
 		if connectorStatesSub != nil {
 			stateChan = connectorStatesSub.Events

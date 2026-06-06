@@ -21,3 +21,15 @@ func TestGetChainByGrpcIdUnknown(t *testing.T) {
 	unknown := GetChainByGrpcId(-1)
 	assert.Equal(t, UnknownChain, unknown)
 }
+
+func TestBitcoinAndTronMethodSpecs(t *testing.T) {
+	bitcoin := GetChain("bitcoin")
+	assert.NotEqual(t, UnknownChain, bitcoin)
+	assert.Equal(t, Bitcoin, bitcoin.Type)
+	assert.Equal(t, "bitcoin", bitcoin.MethodSpec)
+
+	tron := GetChain("tron")
+	assert.NotEqual(t, UnknownChain, tron)
+	assert.Equal(t, Ethereum, tron.Type)
+	assert.Equal(t, "tron", tron.MethodSpec)
+}

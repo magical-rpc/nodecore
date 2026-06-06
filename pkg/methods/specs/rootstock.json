@@ -5,9 +5,7 @@
     "version": "1.0.0"
   },
   "spec": {
-    "name": "rootstock",
-    "api-connectors": ["json-rpc", "websocket"],
-    "type": "plain"
+    "name": "rootstock"
   },
   "spec-imports": [
     "eth"

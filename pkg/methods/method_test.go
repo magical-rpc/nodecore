@@ -7,6 +7,7 @@ import (
 
 	specs "github.com/drpcorg/nodecore/pkg/methods"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,7 +24,7 @@ func TestParseBlockNumberArray(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/parsers")).Load()
 	assert.NoError(t, err)
 
-	spec := specs.GetSpecMethodsByConnectors("test", nil)
+	spec := specs.GetSpecMethods("test")
 
 	tests := []struct {
 		name     string
@@ -78,7 +79,7 @@ func TestParseBlockNumberObject(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/parsers")).Load()
 	assert.NoError(t, err)
 
-	spec := specs.GetSpecMethodsByConnectors("test", nil)
+	spec := specs.GetSpecMethods("test")
 
 	method := spec[specs.DefaultMethodGroup]["call"]
 
@@ -92,7 +93,7 @@ func TestParseBlockRef(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/parsers")).Load()
 	assert.NoError(t, err)
 
-	spec := specs.GetSpecMethodsByConnectors("test", nil)
+	spec := specs.GetSpecMethods("test")
 
 	tests := []struct {
 		name         string
@@ -182,30 +183,30 @@ func TestParseBlockRefLogs(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("specs")).Load()
 	assert.NoError(t, err)
 
-	spec := specs.GetSpecMethodsByConnectors("eth", nil)
+	spec := specs.GetSpecMethods("eth")
 	method := spec[specs.DefaultMethodGroup]["eth_getLogs"]
 
 	result := method.Parse(context.Background(), []any{map[string]interface{}{"blockHash": "0xe0594250efac73640aeff78ec40aaaaa87f91edb54e5af926ee71a32ef32da34"}})
 	assert.Equal(t, "0xe0594250efac73640aeff78ec40aaaaa87f91edb54e5af926ee71a32ef32da34", result.(*specs.HashTagParam).Hash)
 
 	result = method.Parse(context.Background(), []any{map[string]interface{}{"toBlock": "latest"}})
-	assert.Equal(t, &specs.BlockRangeParam{To: new(rpc.LatestBlockNumber)}, result.(*specs.BlockRangeParam))
+	assert.Equal(t, &specs.BlockRangeParam{To: lo.ToPtr(rpc.LatestBlockNumber)}, result.(*specs.BlockRangeParam))
 
 	result = method.Parse(context.Background(), []any{map[string]interface{}{"toBlock": "0x100"}})
-	assert.Equal(t, &specs.BlockRangeParam{To: new(rpc.BlockNumber(256))}, result.(*specs.BlockRangeParam))
+	assert.Equal(t, &specs.BlockRangeParam{To: lo.ToPtr(rpc.BlockNumber(256))}, result.(*specs.BlockRangeParam))
 
 	result = method.Parse(context.Background(), []any{map[string]interface{}{"fromBlock": "0x100", "toBlock": "0x200"}})
-	assert.Equal(t, &specs.BlockRangeParam{From: new(rpc.BlockNumber(256)), To: new(rpc.BlockNumber(512))}, result.(*specs.BlockRangeParam))
+	assert.Equal(t, &specs.BlockRangeParam{From: lo.ToPtr(rpc.BlockNumber(256)), To: lo.ToPtr(rpc.BlockNumber(512))}, result.(*specs.BlockRangeParam))
 
 	result = method.Parse(context.Background(), []any{map[string]interface{}{"fromBlock": "earliest", "toBlock": "latest"}})
-	assert.Equal(t, &specs.BlockRangeParam{From: new(rpc.EarliestBlockNumber), To: new(rpc.LatestBlockNumber)}, result.(*specs.BlockRangeParam))
+	assert.Equal(t, &specs.BlockRangeParam{From: lo.ToPtr(rpc.EarliestBlockNumber), To: lo.ToPtr(rpc.LatestBlockNumber)}, result.(*specs.BlockRangeParam))
 }
 
 func TestParseStringValue(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/parsers")).Load()
 	assert.NoError(t, err)
 
-	spec := specs.GetSpecMethodsByConnectors("test", nil)
+	spec := specs.GetSpecMethods("test")
 	method := spec[specs.DefaultMethodGroup]["eth_uninstallFilter"]
 
 	result := method.Parse(context.Background(), []any{"testValue"})
@@ -218,7 +219,7 @@ func TestModifyValue(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/parsers")).Load()
 	assert.NoError(t, err)
 
-	spec := specs.GetSpecMethodsByConnectors("test", nil)
+	spec := specs.GetSpecMethods("test")
 	method := spec[specs.DefaultMethodGroup]["eth_uninstallFilter"]
 	input := []any{"oldVal"}
 	newVal := "newVal"
@@ -232,7 +233,7 @@ func TestUnableParseBlockNumberThenNil(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/parsers")).Load()
 	assert.NoError(t, err)
 
-	spec := specs.GetSpecMethodsByConnectors("test", nil)
+	spec := specs.GetSpecMethods("test")
 	data := []any{"hello", false, "wrongNumber"}
 	method := spec[specs.DefaultMethodGroup]["test"]
 
@@ -245,7 +246,7 @@ func TestUnableParseBlockRefThenNil(t *testing.T) {
 	err := specs.NewMethodSpecLoaderWithFs(os.DirFS("test_specs/parsers")).Load()
 	assert.NoError(t, err)
 
-	spec := specs.GetSpecMethodsByConnectors("test", nil)
+	spec := specs.GetSpecMethods("test")
 	data := []any{"wrongNumber"}
 	method := spec[specs.DefaultMethodGroup]["call_1"]
 

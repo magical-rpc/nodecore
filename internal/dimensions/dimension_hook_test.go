@@ -16,8 +16,7 @@ func TestDimensionsHookMultipleResults(t *testing.T) {
 	tracker := dimensions.NewBaseDimensionTracker()
 	hook := dimensions.NewDimensionHook(tracker)
 
-	body := protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_call", Params: nil}
-	request := protocol.NewUpstreamJsonRpcRequest("1", body, false, "")
+	request := protocol.NewUpstreamJsonRpcRequest("1", []byte(`1`), "eth_call", nil, false, nil)
 	responseHolder := protocol.NewSimpleHttpUpstreamResponse("1", []byte("res"), protocol.JsonRpc)
 	responseHolder1 := protocol.NewTotalFailure(request, protocol.CtxError(errors.New("test error")))
 	responseHolder2 := protocol.NewPartialFailure(request, protocol.RequestTimeoutError())

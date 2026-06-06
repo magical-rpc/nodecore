@@ -5,9 +5,7 @@
     "version": "1.0.0"
   },
   "spec": {
-    "api-connectors": ["json-rpc"],
-    "name": "algorand",
-    "type": "plain"
+    "name": "algorand"
   },
   "methods": [
     {

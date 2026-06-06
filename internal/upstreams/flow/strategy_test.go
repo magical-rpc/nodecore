@@ -135,7 +135,7 @@ func TestRatingStrategyMatchersErrors(t *testing.T) {
 			name:   "no available sub method",
 			method: "eth_getBalance",
 			requestFunc: func(method string) protocol.RequestHolder {
-				request := protocol.NewUpstreamJsonRpcRequest("id", protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_getBalance"}, true, "")
+				request := protocol.NewUpstreamJsonRpcRequest("id", []byte("1"), "eth_getBalance", nil, true, nil)
 				return request
 			},
 			publishEventFunc: func(chSup upstreams.ChainSupervisor) {
@@ -195,7 +195,7 @@ func TestBaseStrategyMatchersErrors(t *testing.T) {
 				test_utils.PublishEvent(chSup, "id1", protocol.Available, mapset.NewThreadUnsafeSet[protocol.Cap]())
 			},
 			requestFunc: func(method string) protocol.RequestHolder {
-				request := protocol.NewUpstreamJsonRpcRequest("id", protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_getBalance"}, true, "")
+				request := protocol.NewUpstreamJsonRpcRequest("id", []byte("1"), "eth_getBalance", nil, true, nil)
 				return request
 			},
 			expectedErr: protocol.NotSupportedMethodError("eth_getBalance"),
@@ -245,7 +245,7 @@ func TestBaseStrategyMatchersErrors(t *testing.T) {
 func TestBaseStrategyWithWsCap(t *testing.T) {
 	chSup := test_utils.CreateChainSupervisor()
 	test_utils.PublishEvent(chSup, "id1", protocol.Available, mapset.NewThreadUnsafeSet[protocol.Cap](protocol.WsCap))
-	request := protocol.NewUpstreamJsonRpcRequest("id", protocol.JsonRpcRequestBody{Id: []byte(`1`), Method: "eth_getBalance"}, true, "")
+	request := protocol.NewUpstreamJsonRpcRequest("id", []byte("1"), "eth_getBalance", nil, true, nil)
 	baseStrategy := flow.NewBaseStrategy(chSup)
 
 	upId, err := baseStrategy.SelectUpstream(request)
@@ -275,91 +275,4 @@ func TestBaseStrategyGetUpstreams(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.Equal(t, protocol.NoAvailableUpstreamsError(), err)
-}
-
-func TestBaseStrategyRoutesByLabelSelector(t *testing.T) {
-	chSup := test_utils.CreateChainSupervisor()
-	publishStateWithLabel(chSup, "id1", "region", "eu")
-	publishStateWithLabel(chSup, "id2", "region", "us")
-	request, _ := protocol.NewInternalUpstreamJsonRpcRequest("eth_getBalance", nil, chains.ARBITRUM)
-	strategy := flow.NewBaseStrategyWithOptions(chSup, []flow.Matcher{flow.NewLabelMatcher("region", []string{"us"})}, nil)
-
-	up, err := strategy.SelectUpstream(request)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "id2", up)
-}
-
-func TestBaseStrategyNoMatchIncludesSelectorTrace(t *testing.T) {
-	chSup := test_utils.CreateChainSupervisor()
-	publishStateWithLabel(chSup, "id1", "region", "eu")
-	request, _ := protocol.NewInternalUpstreamJsonRpcRequest("eth_getBalance", nil, chains.ARBITRUM)
-	strategy := flow.NewBaseStrategyWithOptions(chSup, []flow.Matcher{flow.NewLabelMatcher("region", []string{"us"})}, nil)
-
-	_, err := strategy.SelectUpstream(request)
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "id1 - No label `region` with values [us]")
-}
-
-func publishStateWithLabel(chainSupervisor upstreams.ChainSupervisor, upId, key, value string) {
-	methodsMock := mocks.NewMethodsMock()
-	methodsMock.On("GetSupportedMethods").Return(mapset.NewThreadUnsafeSet[string]("eth_getBalance"))
-	methodsMock.On("HasMethod", "eth_getBalance").Return(true)
-	state := protocol.DefaultUpstreamState(methodsMock, mapset.NewThreadUnsafeSet[protocol.Cap](), "index", nil, nil)
-	state.Status = protocol.Available
-	state.HeadData = protocol.Block{Height: 100, Slot: 50}
-	state.Labels.AddLabel(key, value)
-	chainSupervisor.PublishUpstreamEvent(protocol.UpstreamEvent{Id: upId, EventType: &protocol.StateUpstreamEvent{State: &state}})
-	time.Sleep(10 * time.Millisecond)
-}
-
-func TestSpecificOrderUpstreamStrategyAppliesSelectorMatchersForQuorumOrder(t *testing.T) {
-	chSup := test_utils.CreateChainSupervisor()
-	publishStateWithLabel(chSup, "drpc-eu", "region", "eu")
-	publishStateWithLabel(chSup, "drpc-us", "region", "us")
-	request, _ := protocol.NewInternalUpstreamJsonRpcRequest("eth_getBalance", nil, chains.ARBITRUM)
-	strategy := flow.NewSpecificOrderUpstreamStrategy([]string{"drpc-eu", "drpc-us"}, chSup).
-		WithAdditionalMatchers([]flow.Matcher{flow.NewLabelMatcher("region", []string{"us"})})
-
-	up, err := strategy.SelectUpstream(request)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "drpc-us", up)
-}
-
-func TestSelectorFailureDoesNotMaskAvailabilityErrorPriority(t *testing.T) {
-	chSup := test_utils.CreateChainSupervisor()
-	methodsMock := mocks.NewMethodsMock()
-	methodsMock.On("GetSupportedMethods").Return(mapset.NewThreadUnsafeSet[string]("eth_getBalance"))
-	methodsMock.On("HasMethod", "eth_getBalance").Return(true)
-	state := protocol.DefaultUpstreamState(methodsMock, mapset.NewThreadUnsafeSet[protocol.Cap](), "index", nil, nil)
-	state.Status = protocol.Unavailable
-	state.Labels.AddLabel("region", "eu")
-	chSup.PublishUpstreamEvent(protocol.UpstreamEvent{Id: "id1", EventType: &protocol.StateUpstreamEvent{State: &state}})
-	time.Sleep(10 * time.Millisecond)
-	request, _ := protocol.NewInternalUpstreamJsonRpcRequest("eth_getBalance", nil, chains.ARBITRUM)
-	strategy := flow.NewBaseStrategyWithOptions(chSup, []flow.Matcher{flow.NewLabelMatcher("region", []string{"us"})}, nil)
-
-	_, err := strategy.SelectUpstream(request)
-
-	assert.Equal(t, protocol.NoAvailableUpstreamsError(), err)
-}
-
-func TestSelectorFailureDoesNotMaskMethodErrorPriority(t *testing.T) {
-	chSup := test_utils.CreateChainSupervisor()
-	methodsMock := mocks.NewMethodsMock()
-	methodsMock.On("GetSupportedMethods").Return(mapset.NewThreadUnsafeSet[string]("eth_getBalance"))
-	methodsMock.On("HasMethod", "eth_call").Return(false)
-	state := protocol.DefaultUpstreamState(methodsMock, mapset.NewThreadUnsafeSet[protocol.Cap](), "index", nil, nil)
-	state.Status = protocol.Available
-	state.Labels.AddLabel("region", "eu")
-	chSup.PublishUpstreamEvent(protocol.UpstreamEvent{Id: "id1", EventType: &protocol.StateUpstreamEvent{State: &state}})
-	time.Sleep(10 * time.Millisecond)
-	request, _ := protocol.NewInternalUpstreamJsonRpcRequest("eth_call", nil, chains.ARBITRUM)
-	strategy := flow.NewBaseStrategyWithOptions(chSup, []flow.Matcher{flow.NewLabelMatcher("region", []string{"us"})}, nil)
-
-	_, err := strategy.SelectUpstream(request)
-
-	assert.Equal(t, protocol.NotSupportedMethodError("eth_call"), err)
 }

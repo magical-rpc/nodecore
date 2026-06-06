@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 
+	mapset "github.com/deckarep/golang-set/v2"
+	"github.com/drpcorg/nodecore/internal/config"
 	"github.com/drpcorg/nodecore/internal/protocol"
+	specific "github.com/drpcorg/nodecore/internal/upstreams/chains_specific"
 	"github.com/drpcorg/nodecore/internal/upstreams/connectors"
 	"github.com/drpcorg/nodecore/pkg/utils"
 	"github.com/rs/zerolog/log"
@@ -25,14 +27,11 @@ var ethErrorsToDisable = []string{
 	"invalid block number",
 }
 
-type safeBlockProvider interface {
-	GetSafeBlock(context.Context) (protocol.Block, error)
-}
-
 type BlockProcessor interface {
 	utils.Lifecycle
 	Subscribe(name string) *utils.Subscription[BlockEvent]
 	UpdateBlock(blockData protocol.Block, blockType protocol.BlockType)
+	DisabledBlocks() mapset.Set[protocol.BlockType]
 }
 
 type BlockEvent struct {
@@ -41,17 +40,15 @@ type BlockEvent struct {
 }
 
 type EthLikeBlockProcessor struct {
-	upstreamId                string
-	connector                 connectors.ApiConnector
-	chainSpecific             BlockChainSpecific
-	subManager                *utils.SubscriptionManager[BlockEvent]
-	disableDetection          atomic.Uint32
-	disableSafeBlockDetection bool
-	manualBlockChan           chan *BlockEvent
-	blocks                    map[protocol.BlockType]protocol.Block
-	lifecycle                 *utils.BaseLifecycle
-	internalTimeout           time.Duration
-	pollInterval              time.Duration
+	upConfig         *config.Upstream
+	connector        connectors.ApiConnector
+	chainSpecific    specific.ChainSpecific
+	subManager       *utils.SubscriptionManager[BlockEvent]
+	disableDetection mapset.Set[protocol.BlockType]
+	manualBlockChan  chan *BlockEvent
+	blocks           map[protocol.BlockType]protocol.Block
+	lifecycle        *utils.BaseLifecycle
+	internalTimeout  time.Duration
 }
 
 func (b *EthLikeBlockProcessor) Running() bool {
@@ -59,30 +56,27 @@ func (b *EthLikeBlockProcessor) Running() bool {
 }
 
 func (b *EthLikeBlockProcessor) Stop() {
-	log.Info().Msgf("stopping block processor of upstream '%s'", b.upstreamId)
+	log.Info().Msgf("stopping block processor of upstream '%s'", b.upConfig.Id)
 	b.lifecycle.Stop()
 }
 
 func NewEthLikeBlockProcessor(
 	ctx context.Context,
-	upstreamId string,
-	pollInterval, internalTimeout time.Duration,
-	disableSafeBlockDetection bool,
+	upConfig *config.Upstream,
 	connector connectors.ApiConnector,
-	chainSpecific BlockChainSpecific,
+	chainSpecific specific.ChainSpecific,
 ) *EthLikeBlockProcessor {
-	name := fmt.Sprintf("%s_block_processor", upstreamId)
+	name := fmt.Sprintf("%s_block_processor", upConfig.Id)
 	return &EthLikeBlockProcessor{
-		upstreamId:                upstreamId,
-		connector:                 connector,
-		chainSpecific:             chainSpecific,
-		disableSafeBlockDetection: disableSafeBlockDetection,
-		manualBlockChan:           make(chan *BlockEvent, 100),
-		subManager:                utils.NewSubscriptionManager[BlockEvent](name),
-		blocks:                    make(map[protocol.BlockType]protocol.Block),
-		lifecycle:                 utils.NewBaseLifecycle(name, ctx),
-		internalTimeout:           internalTimeout,
-		pollInterval:              pollInterval,
+		upConfig:         upConfig,
+		connector:        connector,
+		chainSpecific:    chainSpecific,
+		disableDetection: mapset.NewSet[protocol.BlockType](),
+		manualBlockChan:  make(chan *BlockEvent, 100),
+		subManager:       utils.NewSubscriptionManager[BlockEvent](name),
+		blocks:           make(map[protocol.BlockType]protocol.Block),
+		lifecycle:        utils.NewBaseLifecycle(name, ctx),
+		internalTimeout:  upConfig.Options.InternalTimeout,
 	}
 }
 
@@ -94,98 +88,53 @@ func (b *EthLikeBlockProcessor) Subscribe(name string) *utils.Subscription[Block
 	return b.subManager.Subscribe(name)
 }
 
+func (b *EthLikeBlockProcessor) DisabledBlocks() mapset.Set[protocol.BlockType] {
+	return b.disableDetection
+}
+
 func (b *EthLikeBlockProcessor) Start() {
 	b.lifecycle.Start(func(ctx context.Context) error {
-		go b.pollLoop(ctx, protocol.FinalizedBlock)
-		if !b.disableSafeBlockDetection {
-			go b.pollLoop(ctx, protocol.SafeBlock)
-		}
-		go b.blockEventLoop(ctx)
+		go func() {
+			b.poll(protocol.FinalizedBlock)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case event := <-b.manualBlockChan:
+					currentBlock, ok := b.blocks[event.BlockType]
+					if !ok || event.Block.Height > currentBlock.Height {
+						b.subManager.Publish(*event)
+					}
+				case <-time.After(b.upConfig.PollInterval):
+					b.poll(protocol.FinalizedBlock)
+				}
+			}
+		}()
 		return nil
 	})
 }
 
-func (b *EthLikeBlockProcessor) pollLoop(ctx context.Context, blockType protocol.BlockType) {
-	b.poll(blockType)
-
-	ticker := time.NewTicker(b.pollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			b.poll(blockType)
-		}
-	}
-}
-
-func (b *EthLikeBlockProcessor) blockEventLoop(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case event := <-b.manualBlockChan:
-			currentBlock, ok := b.blocks[event.BlockType]
-			if !ok || event.Block.Height > currentBlock.Height {
-				b.blocks[event.BlockType] = event.Block
-				b.subManager.Publish(*event)
-			}
-		}
-	}
-}
-
 func (b *EthLikeBlockProcessor) poll(blockType protocol.BlockType) {
-	if b.detectionDisabled(blockType) {
-		return
-	}
+	if !b.disableDetection.Contains(blockType) {
+		ctx, cancel := context.WithTimeout(b.lifecycle.GetParentContext(), b.internalTimeout)
+		defer cancel()
 
-	ctx, cancel := context.WithTimeout(b.lifecycle.GetParentContext(), b.internalTimeout)
-	defer cancel()
-
-	block, err := b.detectBlock(ctx, blockType)
-	if err != nil {
-		var respErr *protocol.ResponseError
-		if errors.As(err, &respErr) {
-			errStr := err.Error()
-			for _, errToDisable := range ethErrorsToDisable {
-				if strings.Contains(errStr, errToDisable) {
-					b.disableBlockDetection(blockType)
+		block, err := b.chainSpecific.GetFinalizedBlock(ctx)
+		if err != nil {
+			var respErr *protocol.ResponseError
+			if errors.As(err, &respErr) {
+				errStr := err.Error()
+				for _, errToDisable := range ethErrorsToDisable {
+					if strings.Contains(errStr, errToDisable) {
+						b.disableDetection.Add(blockType)
+					}
 				}
 			}
+			log.Error().Err(err).Msgf("couldn't detect finalized block of upstream %s", b.upConfig.Id)
+		} else {
+			b.blocks[blockType] = block
+			b.subManager.Publish(BlockEvent{Block: block, BlockType: blockType})
 		}
-		log.Error().Err(err).Msgf("couldn't detect %s block of upstream %s", blockType.String(), b.upstreamId)
-	} else {
-		b.manualBlockChan <- &BlockEvent{Block: block, BlockType: blockType}
-	}
-}
-
-func (b *EthLikeBlockProcessor) detectionDisabled(blockType protocol.BlockType) bool {
-	return b.disableDetection.Load()&blockTypeMask(blockType) != 0
-}
-
-func (b *EthLikeBlockProcessor) disableBlockDetection(blockType protocol.BlockType) {
-	b.disableDetection.Or(blockTypeMask(blockType))
-}
-
-func blockTypeMask(blockType protocol.BlockType) uint32 {
-	return 1 << uint(blockType)
-}
-
-func (b *EthLikeBlockProcessor) detectBlock(ctx context.Context, blockType protocol.BlockType) (protocol.Block, error) {
-	switch blockType {
-	case protocol.FinalizedBlock:
-		return b.chainSpecific.GetFinalizedBlock(ctx)
-	case protocol.SafeBlock:
-		safeProvider, ok := b.chainSpecific.(safeBlockProvider)
-		if !ok {
-			b.disableBlockDetection(protocol.SafeBlock)
-			return protocol.ZeroBlock{}, fmt.Errorf("safe block detection is not supported by chain specific %T", b.chainSpecific)
-		}
-		return safeProvider.GetSafeBlock(ctx)
-	default:
-		return protocol.ZeroBlock{}, fmt.Errorf("unsupported block type %d", blockType)
 	}
 }
 

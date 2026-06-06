@@ -5,9 +5,7 @@
     "version": "1.0.0"
   },
   "spec": {
-    "name": "optimism",
-    "api-connectors": ["json-rpc", "websocket"],
-    "type": "plain"
+    "name": "optimism"
   },
   "spec-imports": [
     "eth"

@@ -2,22 +2,14 @@
 
 The configuration file is the entry point for all nodecore settings. It is organized into several sections, each responsible for a specific part of the system:
 
-- [Server](02-server-config.md) - basic runtime settings of the nodecore server (HTTP, gRPC, metrics, profiling, TLS)
-- [Auth](03-auth.md) - authentication settings and per-key access limitations
-- [Cache](04-cache.md) - cache storages and caching policies
-- [Upstream](05-upstream-config.md) - upstream blockchain providers, failsafe, scoring, validators, and labels
-- [Rate Limiting](06-rate-limiting.md) - request throughput control for upstream providers
-- [App Storages](07-app-storages.md) - shared Redis/Postgres storage referenced by cache and rate limiting
-- [Tor setup](07-tor-setup.md) - running nodecore behind Tor for `.onion` upstreams
-- [Prometheus metrics](08-prometheus-metrics.md) - metrics catalog exposed on the metrics port
-- [Integration](09-integration.md) - DRPC platform integration
-- [Quorum](10-quorum.md) - signed-response quorum verification
-- [Method specs](11-method-specs.md) - per-chain method definitions and how to extend them
-- [gRPC API](12-grpc-server.md) - public gRPC API for querying upstream and chain state
+- [Server](02-server-config.md) - configure the basic runtime settings of the nodecore server
+- [Auth](03-auth.md) - manage authentication settings and access limitations
+- [Cache](04-cache.md) - define cache storages and caching policies
+- [Upstream](05-upstream-config.md) - configure upstream blockchain providers and their settings
+- [Rate Limiting](06-rate-limiting.md) - control request throughput to upstream providers
+- [App Storages](07-app-storages.md) - shared Redis/Postgres storage configurations for cache and rate limiting
 
 By default, nodecore looks for a configuration file named `./nodecore.yml` in the current directory. You can override this path by setting the `NODECORE_CONFIG_PATH` environment variable. For example, `NODECORE_CONFIG_PATH=/path/to/your/config make run`.
-
-Method specs (the per-chain RPC behavior definitions) are embedded into the binary - see [Method specs](11-method-specs.md). Log output format is controlled by the `LOG_FORMAT` environment variable (`json` or `console`, default `console`), and log level by `LOG_LEVEL`.
 
 ## Minimum working configuration
 
@@ -40,7 +32,7 @@ upstream-config:
           url: https://path-to-polygon-provider.com
 ```
 
-> **Supported chains and protocols**: nodecore supports the chains defined in [chains.yaml](https://github.com/drpcorg/public/blob/main/chains.yaml). Current chain families are EVM (Ethereum, Polygon, Optimism, Arbitrum, Base, BSC, Fantom, Linea, Mantle, Scroll, zkSync, and others), Solana, Algorand, and Aztec. Supported upstream protocols are `json-rpc`, `websocket`, `rest`; the exact set available for each chain is declared by the chain's method spec (see [Method specs](11-method-specs.md)).
+> **⚠️ Important note**: Currently, nodecore supports Solana and Ethereum-compatible chains as defined in the [chains.yaml](https://github.com/drpcorg/public/blob/main/chains.yaml) file. Future releases will extend support to all chains listed in that file, along with additional protocols such as REST and gRPC.
 
 ## Full configuration
 
@@ -49,7 +41,6 @@ To configure all aspects of nodecore, you can use the following example, which d
 ```yaml
 server:
   port: 9090
-  grpc-port: 9091
   metrics-port: 9093
   pprof-port: 6061
   tls:
@@ -61,15 +52,6 @@ server:
     url: pyrosope-url
     username: pyro-username
     password: pyro-password
-    additional-tags:
-      env: prod
-      region: eu-west-1
-  grpc-auth:
-    enabled: true
-    public-key-owner: drpc
-    provider-private-key-path: /path/to/provider.key
-    external-public-key-path: /path/to/external.pub
-    session-ttl: 24h
 
 app-storages:
   - name: redis-storage
@@ -170,14 +152,14 @@ rate-limit:
             - pattern: trace_.*
               requests: 5
               period: 2m
-      - name: budget-override
-        storage: redis-storage
+      - name: budger-override
         config:
+          storage: redis-storage
           rules:
             - method: eth_blockNumber
-              requests: 100
+              request: 100
               period: 1s
-  - default-engine: redis-storage
+  - default-storage: redis-storage
     budgets:
       - name: redis-budget
         config:
@@ -187,9 +169,6 @@ rate-limit:
               period: 1s
 
 upstream-config:
-  mode: default
-  integrity:
-    enabled: true
   failsafe-config:
     retry:
       attempts: 10
@@ -255,9 +234,4 @@ upstream-config:
       connectors:
         - type: json-rpc
           url: https://path-to-eth-provider-2.com
-
-integration:
-  drpc:
-    url: https://drpc-integration-endpoint
-    request-timeout: 10s
 ```

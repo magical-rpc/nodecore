@@ -13,7 +13,6 @@ import (
 	"github.com/dop251/goja_nodejs/console"
 	"github.com/dop251/goja_nodejs/require"
 	"github.com/drpcorg/nodecore/pkg/chains"
-	"github.com/drpcorg/nodecore/pkg/methods"
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/samber/lo"
 )
@@ -47,7 +46,7 @@ type Upstream struct {
 	Id                string                   `yaml:"id"`
 	ChainName         string                   `yaml:"chain"`
 	Connectors        []*ApiConnectorConfig    `yaml:"connectors"`
-	HeadConnector     string                   `yaml:"head-connector"`
+	HeadConnector     ApiConnectorType         `yaml:"head-connector"`
 	PollInterval      time.Duration            `yaml:"poll-interval"`
 	Methods           *MethodsConfig           `yaml:"methods"`
 	FailsafeConfig    *FailsafeConfig          `yaml:"failsafe-config"`
@@ -57,34 +56,25 @@ type Upstream struct {
 	RateLimitAutoTune *RateLimitAutoTuneConfig `yaml:"rate-limit-auto-tune"`
 }
 
-func (u *Upstream) GetApiConnectorTypes() []specs.ApiConnectorType {
-	return lo.Map(u.Connectors, func(item *ApiConnectorConfig, index int) specs.ApiConnectorType {
-		return item.GetApiConnectorType()
-	})
-}
-
-func (u *Upstream) GetHeadApiConnectorType() specs.ApiConnectorType {
-	return specs.GetApiConnectorType(u.HeadConnector)
-}
-
-type sortConnectorFunc func([]*ApiConnectorConfig) specs.ApiConnectorType
+type sortConnectorFunc func([]*ApiConnectorConfig) ApiConnectorType
 
 var sortConnectorsFunc = map[UpstreamMode]sortConnectorFunc{
-	DefaultMode: func(configs []*ApiConnectorConfig) specs.ApiConnectorType {
+	DefaultMode: func(configs []*ApiConnectorConfig) ApiConnectorType {
 		return lo.MinBy(configs, func(a *ApiConnectorConfig, b *ApiConnectorConfig) bool {
-			return a.GetApiConnectorType() < b.GetApiConnectorType()
-		}).GetApiConnectorType()
+			return connectorTypesRating[a.Type] < connectorTypesRating[b.Type]
+		}).Type
 	},
-	StrictMode: func(configs []*ApiConnectorConfig) specs.ApiConnectorType {
+	StrictMode: func(configs []*ApiConnectorConfig) ApiConnectorType {
 		return lo.MaxBy(configs, func(a *ApiConnectorConfig, b *ApiConnectorConfig) bool {
-			return a.GetApiConnectorType() > b.GetApiConnectorType()
-		}).GetApiConnectorType()
+			return connectorTypesRating[a.Type] > connectorTypesRating[b.Type]
+		}).Type
 	},
 }
 
-func (u *Upstream) GetBestConnector(upstreamMode UpstreamMode) specs.ApiConnectorType {
+func (u *Upstream) GetBestConnector(upstreamMode UpstreamMode) ApiConnectorType {
 	filteredConnectors := lo.Filter(u.Connectors, func(item *ApiConnectorConfig, index int) bool {
-		return item.GetApiConnectorType() != specs.UnknownType && !specs.IsAdditionalApiConnectorType(item.GetApiConnectorType())
+		_, ok := connectorTypesRating[item.Type]
+		return ok
 	})
 
 	if len(filteredConnectors) > 0 {
@@ -92,7 +82,7 @@ func (u *Upstream) GetBestConnector(upstreamMode UpstreamMode) specs.ApiConnecto
 			return sortFunc(filteredConnectors)
 		}
 	}
-	return specs.UnknownType
+	return ""
 }
 
 type ChainDefaults struct {
@@ -119,19 +109,26 @@ type IntegrityConfig struct {
 }
 
 type ApiConnectorConfig struct {
-	Type    string            `yaml:"type"`
+	Type    ApiConnectorType  `yaml:"type"`
 	Url     string            `yaml:"url"`
 	Headers map[string]string `yaml:"headers,omitempty"`
 	Ca      string            `yaml:"ca"`
-	// ResponseHeaderDeny lists upstream response-header names that must
-	// NOT be forwarded to the client, in addition to the connector's
-	// hard-coded defaults (hop-by-hop per RFC 7230 plus Set-Cookie /
-	// Server). Matching is case-insensitive (HTTP header rules).
-	ResponseHeaderDeny []string `yaml:"response-header-deny,omitempty"`
 }
 
-func (a *ApiConnectorConfig) GetApiConnectorType() specs.ApiConnectorType {
-	return specs.GetApiConnectorType(a.Type)
+type ApiConnectorType string
+
+const (
+	JsonRpc ApiConnectorType = "json-rpc"
+	Rest    ApiConnectorType = "rest"
+	Grpc    ApiConnectorType = "grpc"
+	Ws      ApiConnectorType = "websocket"
+)
+
+var connectorTypesRating = map[ApiConnectorType]int{
+	JsonRpc: 0,
+	Rest:    1,
+	Grpc:    2,
+	Ws:      3,
 }
 
 var registry = new(require.Registry)
@@ -325,7 +322,8 @@ func (h *HedgeConfig) validate() error {
 }
 
 func (u *Upstream) validate(torProxyUrl string) error {
-	if !chains.IsSupported(u.ChainName) {
+	configuredChain := chains.GetChain(u.ChainName)
+	if configuredChain == chains.UnknownChain {
 		return fmt.Errorf("not supported chain '%s'", u.ChainName)
 	}
 
@@ -339,31 +337,26 @@ func (u *Upstream) validate(torProxyUrl string) error {
 		}
 	}
 
-	onlyAdditional := len(u.Connectors) == 1 && specs.IsAdditionalApiConnectorType(u.Connectors[0].GetApiConnectorType())
-	if onlyAdditional {
-		return fmt.Errorf(
-			"additional api connector %s can't be the only upstream connector, there must be at least one plain connector %s",
-			u.Connectors[0].GetApiConnectorType(),
-			specs.GetPlainApiConnectorType(),
-		)
-	}
-
-	connectorTypeSet := mapset.NewThreadUnsafeSet[specs.ApiConnectorType]()
+	connectorTypeSet := mapset.NewThreadUnsafeSet[ApiConnectorType]()
 	for _, connector := range u.Connectors {
-		if connectorTypeSet.Contains(connector.GetApiConnectorType()) {
+		if connectorTypeSet.Contains(connector.Type) {
 			return fmt.Errorf("there can be only one connector of type '%s'", connector.Type)
 		}
 		if err := connector.validate(torProxyUrl); err != nil {
 			return err
 		}
-		connectorTypeSet.Add(connector.GetApiConnectorType())
+		connectorTypeSet.Add(connector.Type)
 	}
 
-	if err := u.validateHeadConnector(); err != nil {
+	if err := u.HeadConnector.validate(); err != nil {
+		return fmt.Errorf("invalid head connector - '%s'", u.HeadConnector)
+	}
+
+	if err := u.validateChainConnectorTypes(configuredChain); err != nil {
 		return err
 	}
 
-	if !connectorTypeSet.Contains(u.GetHeadApiConnectorType()) {
+	if !connectorTypeSet.Contains(u.HeadConnector) {
 		return fmt.Errorf("there is no '%s' connector for head", u.HeadConnector)
 	}
 
@@ -382,13 +375,20 @@ func (u *Upstream) validate(torProxyUrl string) error {
 	return nil
 }
 
-func (u *Upstream) validateHeadConnector() error {
-	if err := specs.ValidateApiConnectorType(u.HeadConnector); err != nil {
-		return fmt.Errorf("invalid head connector, %s", err.Error())
+func (u *Upstream) validateChainConnectorTypes(configuredChain *chains.ConfiguredChain) error {
+	if configuredChain.Type != chains.Bitcoin {
+		return nil
 	}
-	if specs.IsAdditionalApiConnectorType(u.GetHeadApiConnectorType()) {
-		return fmt.Errorf("additional api connector type '%s' is forbidden for head connector", u.GetHeadApiConnectorType())
+
+	for _, connector := range u.Connectors {
+		if connector.Type != JsonRpc {
+			return fmt.Errorf("bitcoin upstreams support only '%s' connectors, got '%s'", JsonRpc, connector.Type)
+		}
 	}
+	if u.HeadConnector != JsonRpc {
+		return fmt.Errorf("bitcoin upstreams support only '%s' head connector, got '%s'", JsonRpc, u.HeadConnector)
+	}
+
 	return nil
 }
 
@@ -421,20 +421,20 @@ func (c *ChainDefaults) validate() error {
 	return nil
 }
 
-func (a *ApiConnectorConfig) validate(torProxyUrl string) error {
-	if err := specs.ValidateApiConnectorType(a.Type); err != nil {
+func (c *ApiConnectorConfig) validate(torProxyUrl string) error {
+	if err := c.Type.validate(); err != nil {
 		return err
 	}
 
-	if a.Url == "" {
-		return fmt.Errorf("url must be specified for connector '%s'", a.Type)
+	if c.Url == "" {
+		return fmt.Errorf("url must be specified for connector '%s'", c.Type)
 	}
-	parsedUrl, err := url.Parse(a.Url)
+	parsedUrl, err := url.Parse(c.Url)
 	if err != nil {
-		return fmt.Errorf("invalid url for connector '%s' - %s", a.Type, err.Error())
+		return fmt.Errorf("invalid url for connector '%s' - %s", c.Type, err.Error())
 	}
 	if parsedUrl.Scheme == "" || parsedUrl.Host == "" {
-		return fmt.Errorf("invalid url for connector '%s' - scheme and host are required", a.Type)
+		return fmt.Errorf("invalid url for connector '%s' - scheme and host are required", c.Type)
 	}
 	if strings.HasSuffix(parsedUrl.Hostname(), ".onion") {
 		if torProxyUrl == "" {
@@ -442,5 +442,14 @@ func (a *ApiConnectorConfig) validate(torProxyUrl string) error {
 		}
 	}
 
+	return nil
+}
+
+func (t ApiConnectorType) validate() error {
+	switch t {
+	case Grpc, JsonRpc, Rest, Ws:
+	default:
+		return fmt.Errorf("invalid connector type - '%s'", t)
+	}
 	return nil
 }

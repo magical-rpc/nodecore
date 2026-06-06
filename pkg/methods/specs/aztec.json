@@ -5,9 +5,7 @@
     "version": "1.0.0"
   },
   "spec": {
-    "name": "aztec",
-    "api-connectors": ["json-rpc"],
-    "type": "plain"
+    "name": "aztec"
   },
   "methods": [
     {

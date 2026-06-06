@@ -6,7 +6,6 @@ import (
 
 	"github.com/drpcorg/nodecore/internal/config"
 	"github.com/drpcorg/nodecore/pkg/chains"
-	"github.com/drpcorg/nodecore/pkg/methods"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,6 +70,29 @@ func TestNoConnectorUrlThenError(t *testing.T) {
 	assert.ErrorContains(t, err, "error during upstream 'eth-upstream' validation, cause: url must be specified for connector 'rest'")
 }
 
+func TestBitcoinJsonRpcConfigSucceeds(t *testing.T) {
+	t.Setenv(config.ConfigPathVar, "configs/upstreams/bitcoin-json-rpc.yaml")
+	appConfig, err := config.NewAppConfig()
+	require.NoError(t, err)
+
+	upstream := appConfig.UpstreamConfig.Upstreams[0]
+	assert.Equal(t, "bitcoin", upstream.ChainName)
+	assert.Equal(t, config.JsonRpc, upstream.HeadConnector)
+	assert.Equal(t, "Basic dXNlcjpwYXNz", upstream.Connectors[0].Headers["Authorization"])
+}
+
+func TestBitcoinWebsocketConnectorThenError(t *testing.T) {
+	t.Setenv(config.ConfigPathVar, "configs/upstreams/bitcoin-websocket-connector.yaml")
+	_, err := config.NewAppConfig()
+	assert.ErrorContains(t, err, "error during upstream 'bitcoin-upstream' validation, cause: bitcoin upstreams support only 'json-rpc' connectors, got 'websocket'")
+}
+
+func TestBitcoinRestHeadConnectorThenError(t *testing.T) {
+	t.Setenv(config.ConfigPathVar, "configs/upstreams/bitcoin-rest-head-connector.yaml")
+	_, err := config.NewAppConfig()
+	assert.ErrorContains(t, err, "error during upstream 'bitcoin-upstream' validation, cause: bitcoin upstreams support only 'json-rpc' head connector, got 'rest'")
+}
+
 func TestSetDefaultPollInterval(t *testing.T) {
 	t.Setenv(config.ConfigPathVar, "configs/upstreams/default-poll-interval.yaml")
 	appConfig, err := config.NewAppConfig()
@@ -81,17 +103,17 @@ func TestSetDefaultPollInterval(t *testing.T) {
 		Methods: &config.MethodsConfig{
 			BanDuration: 5 * time.Minute,
 		},
-		HeadConnector:  specs.JsonRpcConnector.String(),
+		HeadConnector:  config.JsonRpc,
 		PollInterval:   1 * time.Minute,
 		ChainName:      "ethereum",
 		FailsafeConfig: &config.FailsafeConfig{},
 		Connectors: []*config.ApiConnectorConfig{
 			{
-				Type: specs.JsonRpcConnector.String(),
+				Type: config.JsonRpc,
 				Url:  "https://test.com",
 			},
 			{
-				Type: specs.WebsocketConnector.String(),
+				Type: config.Ws,
 				Url:  "wss://test.com",
 			},
 		},
@@ -103,7 +125,6 @@ func TestSetDefaultPollInterval(t *testing.T) {
 			DisableChainValidation:      new(false),
 			DisableHealthValidation:     new(false),
 			DisableLowerBoundsDetection: new(true),
-			DisableSafeBlockDetection:   new(true),
 			DisableLabelsDetection:      new(true),
 			ValidateSyncing:             new(false),
 			ValidatePeers:               new(false),
@@ -123,7 +144,7 @@ func TestSetDefaultJsonRpcHeadConnector(t *testing.T) {
 
 	expected := &config.Upstream{
 		Id:            "eth-upstream",
-		HeadConnector: specs.JsonRpcConnector.String(),
+		HeadConnector: config.JsonRpc,
 		PollInterval:  1 * time.Minute,
 		ChainName:     "ethereum",
 		Methods: &config.MethodsConfig{
@@ -132,11 +153,11 @@ func TestSetDefaultJsonRpcHeadConnector(t *testing.T) {
 		FailsafeConfig: &config.FailsafeConfig{},
 		Connectors: []*config.ApiConnectorConfig{
 			{
-				Type: specs.JsonRpcConnector.String(),
+				Type: config.JsonRpc,
 				Url:  "https://test.com",
 			},
 			{
-				Type: specs.RestConnector.String(),
+				Type: config.Rest,
 				Url:  "https://test.com",
 			},
 		},
@@ -148,7 +169,6 @@ func TestSetDefaultJsonRpcHeadConnector(t *testing.T) {
 			DisableChainValidation:      new(false),
 			DisableHealthValidation:     new(false),
 			DisableLowerBoundsDetection: new(true),
-			DisableSafeBlockDetection:   new(true),
 			DisableLabelsDetection:      new(true),
 			ValidateSyncing:             new(false),
 			ValidatePeers:               new(false),
@@ -168,7 +188,7 @@ func TestSetDefaultRestHeadConnector(t *testing.T) {
 
 	expected := &config.Upstream{
 		Id:            "eth-upstream",
-		HeadConnector: specs.RestConnector.String(),
+		HeadConnector: config.Rest,
 		PollInterval:  1 * time.Minute,
 		ChainName:     "ethereum",
 		Methods: &config.MethodsConfig{
@@ -177,11 +197,11 @@ func TestSetDefaultRestHeadConnector(t *testing.T) {
 		FailsafeConfig: &config.FailsafeConfig{},
 		Connectors: []*config.ApiConnectorConfig{
 			{
-				Type: specs.WebsocketConnector.String(),
+				Type: config.Ws,
 				Url:  "https://test.com",
 			},
 			{
-				Type: specs.RestConnector.String(),
+				Type: config.Rest,
 				Url:  "https://test.com",
 			},
 		},
@@ -193,7 +213,6 @@ func TestSetDefaultRestHeadConnector(t *testing.T) {
 			DisableChainValidation:      new(false),
 			DisableHealthValidation:     new(false),
 			DisableLowerBoundsDetection: new(true),
-			DisableSafeBlockDetection:   new(true),
 			DisableLabelsDetection:      new(true),
 			ValidateSyncing:             new(false),
 			ValidatePeers:               new(false),
@@ -219,7 +238,6 @@ func TestSetStrictMode(t *testing.T) {
 		DisableChainValidation:      new(false),
 		DisableHealthValidation:     new(false),
 		DisableLowerBoundsDetection: new(false),
-		DisableSafeBlockDetection:   new(false),
 		DisableLabelsDetection:      new(false),
 		ValidateSyncing:             new(true),
 		ValidatePeers:               new(true),
@@ -231,7 +249,7 @@ func TestSetStrictMode(t *testing.T) {
 	upstream := appConfig.UpstreamConfig.Upstreams[0]
 	assert.Equal(t, expectedOptions, upstream.Options)
 	assert.Equal(t, config.StrictMode, appConfig.UpstreamConfig.Mode)
-	assert.Equal(t, specs.WebsocketConnector.String(), upstream.HeadConnector)
+	assert.Equal(t, config.Ws, upstream.HeadConnector)
 	assert.Equal(t, chains.GetChain("ethereum").Settings.ExpectedBlockTime, upstream.PollInterval)
 }
 
@@ -239,93 +257,22 @@ func TestGetBestConnector(t *testing.T) {
 	upstream := &config.Upstream{
 		Connectors: []*config.ApiConnectorConfig{
 			{
-				Type: specs.RestConnector.String(),
+				Type: config.Rest,
 			},
 			{
-				Type: specs.GrpcConnector.String(),
+				Type: config.Grpc,
 			},
 			{
-				Type: specs.JsonRpcConnector.String(),
+				Type: config.JsonRpc,
 			},
 			{
-				Type: specs.WebsocketConnector.String(),
+				Type: config.Ws,
 			},
 		},
 	}
 
-	assert.Equal(t, specs.JsonRpcConnector, upstream.GetBestConnector(config.DefaultMode))
-	assert.Equal(t, specs.WebsocketConnector, upstream.GetBestConnector(config.StrictMode))
-}
-
-// rest-additional is a marker type for connectors that augment a chain
-// with extra REST endpoints; it must NOT be picked as the upstream's
-// "best" connector, otherwise routing would land on a connector that
-// can't serve the bulk of methods.
-func TestGetBestConnectorSkipsAdditionalConnectorType(t *testing.T) {
-	upstream := &config.Upstream{
-		Connectors: []*config.ApiConnectorConfig{
-			{Type: specs.RestAdditional.String()},
-			{Type: specs.JsonRpcConnector.String()},
-			{Type: specs.WebsocketConnector.String()},
-		},
-	}
-
-	assert.Equal(t, specs.JsonRpcConnector, upstream.GetBestConnector(config.DefaultMode),
-		"default mode must pick the lowest plain-connector type and skip rest-additional")
-	assert.Equal(t, specs.WebsocketConnector, upstream.GetBestConnector(config.StrictMode),
-		"strict mode must pick the highest plain-connector type and skip rest-additional")
-}
-
-// When every configured connector is an additional type, there's nothing
-// for the proxy to actually route through - GetBestConnector signals that
-// by returning UnknownType.
-func TestGetBestConnectorOnlyAdditionalReturnsUnknown(t *testing.T) {
-	upstream := &config.Upstream{
-		Connectors: []*config.ApiConnectorConfig{
-			{Type: specs.RestAdditional.String()},
-		},
-	}
-
-	assert.Equal(t, specs.UnknownType, upstream.GetBestConnector(config.DefaultMode),
-		"no plain connectors -> no best connector to pick")
-	assert.Equal(t, specs.UnknownType, upstream.GetBestConnector(config.StrictMode))
-}
-
-// An upstream that lists only a rest-additional connector has no usable
-// transport for the chain's bulk methods - reject the config at load time
-// rather than letting it deploy a half-broken upstream.
-func TestOnlyRestAdditionalConnectorThenError(t *testing.T) {
-	t.Setenv(config.ConfigPathVar, "configs/upstreams/only-rest-additional.yaml")
-	_, err := config.NewAppConfig()
-	assert.ErrorContains(t, err,
-		"additional api connector rest-additional can't be the only upstream connector",
-		"single rest-additional connector must be rejected with a self-explanatory error")
-}
-
-// rest-additional must never be chosen as the head connector - head
-// probes go through this connector and the additional one only serves
-// extra REST methods, not the chain-head poll surface.
-func TestRestAdditionalHeadConnectorThenError(t *testing.T) {
-	t.Setenv(config.ConfigPathVar, "configs/upstreams/rest-additional-head-connector.yaml")
-	_, err := config.NewAppConfig()
-	assert.ErrorContains(t, err,
-		"additional api connector type 'rest-additional' is forbidden for head connector",
-		"head-connector pointing at rest-additional must be rejected")
-}
-
-// rest-additional alongside at least one plain connector is the
-// supported shape (e.g. hyperliquid: eth json-rpc + extra POST endpoints).
-// Confirm the validator accepts it instead of bouncing on the additional
-// type alone.
-func TestPlainPlusRestAdditionalConnectorThenSuccess(t *testing.T) {
-	t.Setenv(config.ConfigPathVar, "configs/upstreams/plain-plus-rest-additional.yaml")
-	appConfig, err := config.NewAppConfig()
-	require.NoError(t, err, "rest-additional next to a plain connector must be a valid config")
-
-	upstream := appConfig.UpstreamConfig.Upstreams[0]
-	require.Len(t, upstream.Connectors, 2)
-	assert.Equal(t, specs.JsonRpcConnector.String(), upstream.HeadConnector,
-		"head-connector defaults must pick the plain connector and skip rest-additional")
+	assert.Equal(t, config.JsonRpc, upstream.GetBestConnector(config.DefaultMode))
+	assert.Equal(t, config.Ws, upstream.GetBestConnector(config.StrictMode))
 }
 
 func TestDefaultMode(t *testing.T) {
@@ -341,7 +288,6 @@ func TestDefaultMode(t *testing.T) {
 		DisableChainValidation:      new(false),
 		DisableHealthValidation:     new(false),
 		DisableLowerBoundsDetection: new(true),
-		DisableSafeBlockDetection:   new(true),
 		DisableLabelsDetection:      new(true),
 		ValidateSyncing:             new(false),
 		ValidatePeers:               new(false),
@@ -354,7 +300,7 @@ func TestDefaultMode(t *testing.T) {
 	assert.Equal(t, expectedOptions, upstream.Options)
 	assert.Equal(t, config.DefaultMode, appConfig.UpstreamConfig.Mode)
 	assert.Equal(t, 1*time.Minute, upstream.PollInterval)
-	assert.Equal(t, specs.JsonRpcConnector.String(), upstream.HeadConnector)
+	assert.Equal(t, config.JsonRpc, upstream.HeadConnector)
 }
 
 func TestDefaultModeKeepsIntegrityEnabled(t *testing.T) {
@@ -402,13 +348,13 @@ func TestSetChainsDefault(t *testing.T) {
 					Methods: &config.MethodsConfig{
 						BanDuration: 5 * time.Minute,
 					},
-					HeadConnector:  specs.JsonRpcConnector.String(),
+					HeadConnector:  config.JsonRpc,
 					PollInterval:   10 * time.Minute,
 					ChainName:      "ethereum",
 					FailsafeConfig: &config.FailsafeConfig{},
 					Connectors: []*config.ApiConnectorConfig{
 						{
-							Type: specs.JsonRpcConnector.String(),
+							Type: config.JsonRpc,
 							Url:  "https://test.com",
 						},
 					},
@@ -420,7 +366,6 @@ func TestSetChainsDefault(t *testing.T) {
 						DisableChainValidation:      new(false),
 						DisableHealthValidation:     new(false),
 						DisableLowerBoundsDetection: new(true),
-						DisableSafeBlockDetection:   new(true),
 						DisableLabelsDetection:      new(true),
 						ValidateSyncing:             new(false),
 						ValidatePeers:               new(false),

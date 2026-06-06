@@ -30,11 +30,10 @@ type GrpcAuthConfig struct {
 }
 
 type PyroscopeConfig struct {
-	Enabled        bool              `yaml:"enabled"`
-	Url            string            `yaml:"url"`
-	Username       string            `yaml:"username"`
-	Password       string            `yaml:"password"`
-	AdditionalTags map[string]string `yaml:"additional-tags"`
+	Enabled  bool   `yaml:"enabled"`
+	Url      string `yaml:"url"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 
 func (p *PyroscopeConfig) GetServerAddress() string {
@@ -47,10 +46,6 @@ func (p *PyroscopeConfig) GetServerUsername() string {
 
 func (p *PyroscopeConfig) GetServerPassword() string {
 	return p.Password
-}
-
-func (p *PyroscopeConfig) GetAdditionalTags() map[string]string {
-	return p.AdditionalTags
 }
 
 type TlsConfig struct {

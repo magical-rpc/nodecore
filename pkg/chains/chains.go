@@ -13,6 +13,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+//go:embed public/chains.yaml
+var chainsCfg []byte
+
 type BlockchainType string
 
 const (
@@ -28,9 +31,6 @@ const (
 	Ton                 BlockchainType = "ton"
 	Aztec               BlockchainType = "aztec"
 )
-
-//go:embed public/chains.yaml
-var chainsCfg []byte
 
 type ChainConfig struct {
 	ChainSettings ChainSettings `yaml:"chain-settings"`
@@ -100,10 +100,6 @@ func init() {
 	}
 	chains = result
 	grpcChains = grpcResult
-}
-
-func IsTron(chain Chain) bool {
-	return chain == TRON || chain == TRON_SHASTA
 }
 
 func (c *ConfiguredChain) AverageRemoveSpeed() float64 {
@@ -224,6 +220,8 @@ func getMethodSpecName(blockchainType BlockchainType, methodSpecName string) str
 	switch blockchainType {
 	case Ethereum:
 		return "eth"
+	case Bitcoin:
+		return "bitcoin"
 	case Solana:
 		return "solana"
 	case Aztec:

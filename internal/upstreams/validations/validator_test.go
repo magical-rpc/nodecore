@@ -7,9 +7,7 @@ import (
 
 	"github.com/drpcorg/nodecore/internal/protocol"
 	"github.com/drpcorg/nodecore/internal/upstreams/validations"
-	"github.com/drpcorg/nodecore/internal/upstreams/validations/eth_validations"
 	"github.com/drpcorg/nodecore/pkg/chains"
-	"github.com/drpcorg/nodecore/pkg/test_utils"
 	"github.com/drpcorg/nodecore/pkg/test_utils/mocks"
 	"github.com/stretchr/testify/assert"
 )
@@ -79,8 +77,8 @@ func getTestChainValidator(chainIdResp, netVersionResp protocol.ResponseHolder) 
 	chainIdRequest, _ := protocol.NewInternalUpstreamJsonRpcRequest("eth_chainId", nil, chains.ETHEREUM)
 	netVersionRequest, _ := protocol.NewInternalUpstreamJsonRpcRequest("net_version", nil, chains.ETHEREUM)
 
-	test_utils.ExpectEthValidationRequest(connector, chainIdRequest, chainIdResp)
-	test_utils.ExpectEthValidationRequest(connector, netVersionRequest, netVersionResp)
+	expectEthValidationRequest(connector, chainIdRequest, chainIdResp)
+	expectEthValidationRequest(connector, netVersionRequest, netVersionResp)
 
-	return connector, eth_validations.NewEthChainValidator("id", connector, chains.GetChain("bsc"), options)
+	return connector, validations.NewEthChainValidator("id", connector, chains.GetChain("bsc"), options)
 }

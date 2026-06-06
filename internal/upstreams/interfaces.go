@@ -61,10 +61,9 @@ type Upstream interface {
 	GetChain() chains.Chain
 	GetVendorType() UpstreamVendor
 	GetUpstreamState() protocol.UpstreamState
-	GetConnector(connectorType specs.ApiConnectorType) connectors.ApiConnector
+	GetConnector(connectorType protocol.ApiConnectorType) connectors.ApiConnector
 	GetHashIndex() string
 	GetCurrentHeadHeight() uint64
-	PredictLowerBound(boundType protocol.LowerBoundType, timeOffset int64) int64
 
 	UpdateHead(height, slot uint64)
 	UpdateBlock(block protocol.Block, blockType protocol.BlockType)

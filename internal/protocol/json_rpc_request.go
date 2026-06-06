@@ -21,7 +21,6 @@ type UpstreamJsonRpcRequest struct {
 	requestKey      string
 	specMethod      *specs.Method
 	requestObserver *RequestObserver
-	selectors       []RequestSelector
 
 	parsed   bool
 	isStream bool
@@ -77,24 +76,37 @@ func NewInternalSubUpstreamJsonRpcRequest(method string, params any, chain chain
 	}, nil
 }
 
-func NewUpstreamJsonRpcRequest(id string, jsonRpcRequest JsonRpcRequestBody, isSub bool, specName string) *UpstreamJsonRpcRequest {
-	specMethod := specs.GetSpecMethodWithFallback(specName, jsonRpcRequest.Method)
+func NewUpstreamJsonRpcRequest(
+	id string,
+	realId json.RawMessage,
+	method string,
+	params json.RawMessage,
+	isSub bool,
+	specMethod *specs.Method,
+) *UpstreamJsonRpcRequest {
 	return &UpstreamJsonRpcRequest{
 		id:              id,
-		method:          jsonRpcRequest.Method,
-		realId:          jsonRpcRequest.Id,
-		requestParams:   jsonRpcRequest.Params,
+		method:          method,
+		realId:          realId,
+		requestParams:   params,
 		isSub:           isSub,
-		requestKey:      calculateJsonRpcHash(jsonRpcRequest.Method, jsonRpcRequest.Params),
+		requestKey:      calculateJsonRpcHash(method, params),
 		specMethod:      specMethod,
-		requestObserver: NewRequestObserver(isSub).WithMethod(jsonRpcRequest.Method),
+		requestObserver: NewRequestObserver(isSub).WithMethod(method),
 	}
 }
 
-func NewStreamUpstreamJsonRpcRequest(id string, jsonRpcRequest JsonRpcRequestBody, specName string) *UpstreamJsonRpcRequest {
-	request := NewUpstreamJsonRpcRequest(id, jsonRpcRequest, false, specName)
-	request.isStream = true
-	return request
+func NewStreamUpstreamJsonRpcRequest(id string, realId json.RawMessage, method string, params json.RawMessage, specMethod *specs.Method) *UpstreamJsonRpcRequest {
+	return &UpstreamJsonRpcRequest{
+		id:              id,
+		method:          method,
+		realId:          realId,
+		requestParams:   params,
+		isStream:        true,
+		requestKey:      calculateJsonRpcHash(method, params),
+		specMethod:      specMethod,
+		requestObserver: NewRequestObserver(false).WithMethod(method),
+	}
 }
 
 func calculateJsonRpcHash(method string, params json.RawMessage) string {
@@ -224,18 +236,6 @@ func (u *UpstreamJsonRpcRequest) SpecMethod() *specs.Method {
 
 func (u *UpstreamJsonRpcRequest) RequestObserver() *RequestObserver {
 	return u.requestObserver
-}
-
-func (u *UpstreamJsonRpcRequest) RequestParams() *RequestParams {
-	return nil
-}
-
-func (u *UpstreamJsonRpcRequest) Selectors() []RequestSelector {
-	return append([]RequestSelector(nil), u.selectors...)
-}
-
-func (u *UpstreamJsonRpcRequest) setSelectors(selectors []RequestSelector) {
-	u.selectors = append([]RequestSelector(nil), selectors...)
 }
 
 var _ RequestHolder = (*UpstreamJsonRpcRequest)(nil)

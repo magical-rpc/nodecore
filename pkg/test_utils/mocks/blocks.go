@@ -1,6 +1,7 @@
 package mocks
 
 import (
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/drpcorg/nodecore/internal/protocol"
 	"github.com/drpcorg/nodecore/internal/upstreams/blocks"
 	"github.com/drpcorg/nodecore/pkg/utils"
@@ -39,6 +40,14 @@ func (m *BlockProcessorMock) Subscribe(name string) *utils.Subscription[blocks.B
 
 func (m *BlockProcessorMock) UpdateBlock(blockData protocol.Block, blockType protocol.BlockType) {
 	m.Called(blockData, blockType)
+}
+
+func (m *BlockProcessorMock) DisabledBlocks() mapset.Set[protocol.BlockType] {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(mapset.Set[protocol.BlockType])
 }
 
 func (m *BlockProcessorMock) Publish(event blocks.BlockEvent) {

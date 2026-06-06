@@ -1,0 +1,9 @@
+upstream-config:
+  upstreams:
+    - id: bitcoin-upstream
+      chain: bitcoin
+      connectors:
+        - type: json-rpc
+          url: http://127.0.0.1:8332
+          headers:
+            Authorization: Basic dXNlcjpwYXNz

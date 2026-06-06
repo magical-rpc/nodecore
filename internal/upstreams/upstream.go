@@ -13,7 +13,6 @@ import (
 	"github.com/drpcorg/nodecore/internal/upstreams/methods"
 	"github.com/drpcorg/nodecore/internal/upstreams/validations"
 	"github.com/drpcorg/nodecore/pkg/chains"
-	"github.com/drpcorg/nodecore/pkg/methods"
 	"github.com/drpcorg/nodecore/pkg/utils"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
@@ -89,13 +88,10 @@ func NewBaseUpstream(
 		emitter:          emitter,
 	}
 
-	chainSpecific, err := getChainSpecific(ctx, conf, creationData.upstreamConnectorsInfo, configuredChain)
-	if err != nil {
-		return nil, err
-	}
+	chainSpecific := getChainSpecific(ctx, upstream, conf.Options, creationData.upstreamConnectorsInfo, configuredChain)
 	processorAggregator := event_processors.NewUpstreamProcessorAggregator(
 		[]event_processors.UpstreamStateEventProcessor{
-			CreateBlockEventProcessor(ctx, conf, chainSpecific, configuredChain),
+			CreateBlockEventProcessor(ctx, conf, creationData.upstreamConnectorsInfo.internalRequestConnector, chainSpecific, configuredChain),
 			CreateHeadEventProcessor(ctx, conf, creationData.upstreamConnectorsInfo.headConnector, chainSpecific, configuredChain.Chain),
 			CreateLowerBoundsEventProcessor(ctx, conf, chainSpecific),
 			CreateHealthEventProcessor(ctx, conf, chainSpecific),
@@ -152,13 +148,6 @@ func NewBaseUpstreamWithParams(
 	}
 }
 
-func (u *BaseUpstream) PredictLowerBound(boundType protocol.LowerBoundType, timeOffset int64) int64 {
-	if u.processorAggregator == nil {
-		return 0
-	}
-	return u.processorAggregator.PredictLowerBound(boundType, timeOffset)
-}
-
 func (u *BaseUpstream) GetCurrentHeadHeight() uint64 {
 	state := u.GetUpstreamState()
 	return state.HeadData.Height
@@ -197,7 +186,6 @@ func (u *BaseUpstream) Start() {
 				log.Debug().Msgf("upstream '%s' has unknown result of settings validation, skipping", u.id)
 			}
 		}
-		u.emitter(&protocol.InitUpstreamStateEvent{})
 		go u.processStateEvents(ctx, initialValid)
 		return nil
 	})
@@ -258,7 +246,7 @@ func (u *BaseUpstream) BanMethod(method string) {
 	u.emitter(&protocol.BanMethodUpstreamStateEvent{Method: method})
 }
 
-func (u *BaseUpstream) GetConnector(connectorType specs.ApiConnectorType) connectors.ApiConnector {
+func (u *BaseUpstream) GetConnector(connectorType protocol.ApiConnectorType) connectors.ApiConnector {
 	connector, _ := lo.Find(u.apiConnectors, func(item connectors.ApiConnector) bool {
 		return item.GetType() == connectorType
 	})
@@ -274,10 +262,7 @@ func (u *BaseUpstream) newUpstreamMethods(bannedMethods mapset.Set[string]) meth
 		EnableMethods:  u.upConfig.Methods.EnableMethods,
 		DisableMethods: lo.Union(bannedMethods.ToSlice(), u.upConfig.Methods.DisableMethods),
 	}
-	connectorTypes := lo.Map(u.apiConnectors, func(item connectors.ApiConnector, index int) specs.ApiConnectorType {
-		return item.GetType()
-	})
-	newMethods, _ := methods.NewUpstreamMethods(chains.GetMethodSpecNameByChain(u.chain), newConfig, connectorTypes)
+	newMethods, _ := methods.NewUpstreamMethods(chains.GetMethodSpecNameByChain(u.chain), newConfig)
 	return newMethods
 }
 

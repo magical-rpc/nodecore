@@ -5,19 +5,13 @@ import (
 	"fmt"
 
 	"github.com/drpcorg/nodecore/internal/stats/hook"
-	"github.com/drpcorg/nodecore/internal/upstreams/chains_specific"
-	"github.com/drpcorg/nodecore/internal/upstreams/chains_specific/algorand_specific"
-	"github.com/drpcorg/nodecore/internal/upstreams/chains_specific/aztec_specific"
-	"github.com/drpcorg/nodecore/internal/upstreams/chains_specific/evm_specific"
-	"github.com/drpcorg/nodecore/internal/upstreams/chains_specific/solana_specific"
-	"github.com/drpcorg/nodecore/internal/upstreams/chains_specific/tron_specific"
-	"github.com/drpcorg/nodecore/pkg/methods"
 
 	"github.com/drpcorg/nodecore/internal/config"
 	"github.com/drpcorg/nodecore/internal/dimensions"
 	"github.com/drpcorg/nodecore/internal/protocol"
 	"github.com/drpcorg/nodecore/internal/ratelimiter"
 	"github.com/drpcorg/nodecore/internal/upstreams/blocks"
+	specific "github.com/drpcorg/nodecore/internal/upstreams/chains_specific"
 	"github.com/drpcorg/nodecore/internal/upstreams/connectors"
 	"github.com/drpcorg/nodecore/internal/upstreams/labels"
 	"github.com/drpcorg/nodecore/internal/upstreams/lower_bounds"
@@ -60,7 +54,7 @@ func CreateUpstream(
 		return nil, err
 	}
 
-	upstreamMethods, err := methods.NewUpstreamMethods(configuredChain.MethodSpec, conf.Methods, conf.GetApiConnectorTypes())
+	upstreamMethods, err := methods.NewUpstreamMethods(configuredChain.MethodSpec, conf.Methods)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -103,7 +97,7 @@ func createRateLimiter(
 	return rt, autoTuneRateLimiter
 }
 
-func createLowerBoundsProcessor(chainSpecific chains_specific.ChainSpecific, options *chains.Options) lower_bounds.LowerBoundProcessor {
+func createLowerBoundsProcessor(chainSpecific specific.ChainSpecific, options *chains.Options) lower_bounds.LowerBoundProcessor {
 	if *options.DisableLowerBoundsDetection {
 		return nil
 	}
@@ -117,10 +111,14 @@ func createConnector(
 	connectorConfig *config.ApiConnectorConfig,
 	torProxyUrl string,
 ) (connectors.ApiConnector, error) {
-	switch connectorConfig.GetApiConnectorType() {
-	case specs.JsonRpcConnector:
-		return connectors.NewHttpConnector(connectorConfig, specs.JsonRpcConnector, torProxyUrl)
-	case specs.WebsocketConnector:
+	if configuredChain.Type == chains.Bitcoin && connectorConfig.Type != config.JsonRpc {
+		return nil, fmt.Errorf("bitcoin upstreams support only '%s' connectors, got '%s'", config.JsonRpc, connectorConfig.Type)
+	}
+
+	switch connectorConfig.Type {
+	case config.JsonRpc:
+		return connectors.NewHttpConnector(connectorConfig, protocol.JsonRpcConnector, torProxyUrl)
+	case config.Ws:
 		jsonRpcWsProtocol := ws.NewJsonRpcWsProtocol(upId, configuredChain.MethodSpec, configuredChain.Chain)
 		dialWsService := ws.NewDefaultDialWsService(connectorConfig, torProxyUrl)
 		reqRegistry := ws.NewBaseRequestRegistry(ctx, configuredChain.Chain, upId, configuredChain.MethodSpec)
@@ -137,16 +135,14 @@ func createConnector(
 			return nil, err
 		}
 		return connectors.NewWsConnector(wsProcessor), nil
-	case specs.RestConnector:
-		return connectors.NewHttpConnector(connectorConfig, specs.RestConnector, torProxyUrl)
-	case specs.RestAdditional:
-		return connectors.NewHttpConnector(connectorConfig, specs.RestAdditional, torProxyUrl)
+	case config.Rest:
+		return connectors.NewHttpConnector(connectorConfig, protocol.RestConnector, torProxyUrl)
 	default:
 		panic(fmt.Sprintf("unknown connector type - %s", connectorConfig.Type))
 	}
 }
 
-func createSettingValidationProcessor(chainSpecific chains_specific.ChainSpecific, options *chains.Options) *validations.ValidationProcessor[validations.ValidationSettingResult] {
+func createSettingValidationProcessor(chainSpecific specific.ChainSpecific, options *chains.Options) *validations.ValidationProcessor[validations.ValidationSettingResult] {
 	if *options.DisableValidation || *options.DisableSettingsValidation {
 		return nil
 	}
@@ -158,7 +154,7 @@ func createSettingValidationProcessor(chainSpecific chains_specific.ChainSpecifi
 	return validations.NewSettingsValidationProcessor(validators)
 }
 
-func createHealthValidationProcessor(chainSpecific chains_specific.ChainSpecific, options *chains.Options) *validations.ValidationProcessor[protocol.AvailabilityStatus] {
+func createHealthValidationProcessor(chainSpecific specific.ChainSpecific, options *chains.Options) *validations.ValidationProcessor[protocol.AvailabilityStatus] {
 	if *options.DisableValidation || *options.DisableHealthValidation {
 		return nil
 	}
@@ -169,68 +165,90 @@ func createHealthValidationProcessor(chainSpecific chains_specific.ChainSpecific
 	return validations.NewHealthValidationProcessor(validators)
 }
 
-func createLabelsProcessor(chainSpecific chains_specific.ChainSpecific, options *chains.Options) labels.LabelsProcessor {
+func createLabelsProcessor(chainSpecific specific.ChainSpecific, options *chains.Options) labels.LabelsProcessor {
 	if *options.DisableLabelsDetection {
 		return nil
 	}
 	return chainSpecific.LabelsProcessor()
 }
 
-func createBlockProcessor(chainSpecific chains_specific.ChainSpecific) blocks.BlockProcessor {
-	return chainSpecific.BlockProcessor()
+func createBlockProcessor(
+	ctx context.Context,
+	upConfig *config.Upstream,
+	connector connectors.ApiConnector,
+	chainSpecific specific.ChainSpecific,
+	configuredChain *chains.ConfiguredChain,
+) blocks.BlockProcessor {
+	if configuredChain.MethodSpec == "tron" {
+		return nil
+	}
+
+	switch configuredChain.Type {
+	case chains.Ethereum:
+		return blocks.NewEthLikeBlockProcessor(ctx, upConfig, connector, chainSpecific)
+	default:
+		return nil
+	}
 }
 
 func getChainSpecific(
 	ctx context.Context,
-	conf *config.Upstream,
+	upstream Upstream,
+	options *chains.Options,
 	upstreamConnectorsInfo *connectorsInfo,
 	configuredChain *chains.ConfiguredChain,
-) (chains_specific.ChainSpecific, error) {
+) specific.ChainSpecific {
 	//TODO: there might be a few protocols a chain can work with, so it will be necessary to implement all of them
 	switch configuredChain.Type {
 	case chains.Ethereum:
-		if chains.IsTron(configuredChain.Chain) {
-			return tron_specific.NewTronSpecific(
+		if configuredChain.MethodSpec == "tron" {
+			return specific.NewTronChainSpecificObject(
 				ctx,
-				conf.Id,
-				upstreamConnectorsInfo.internalRequestConnector,
 				configuredChain,
-				conf.PollInterval,
-				conf.Options,
+				upstream.GetId(),
+				upstreamConnectorsInfo.internalRequestConnector,
+				options,
 			)
 		}
-		return evm_specific.NewEvmChainSpecific(
+		return specific.NewEvmChainSpecific(
 			ctx,
-			conf.Id,
+			upstream.GetId(),
 			upstreamConnectorsInfo.internalRequestConnector,
 			configuredChain,
-			conf.PollInterval,
-			conf.Options,
-		), nil
+			options,
+		)
 	case chains.Aztec:
-		return aztec_specific.NewAztecChainSpecificObject(
+		return specific.NewAztecChainSpecificObject(
 			ctx,
 			configuredChain,
-			conf.Id,
-			conf.Options,
+			upstream.GetId(),
+			options,
 			upstreamConnectorsInfo.internalRequestConnector,
-		), nil
+		)
 	case chains.Algorand:
-		return algorand_specific.NewAlgorandChainSpecificObject(
+		return specific.NewAlgorandChainSpecificObject(
 			ctx,
 			configuredChain,
-			conf.Id,
+			upstream.GetId(),
 			upstreamConnectorsInfo.internalRequestConnector,
-			conf.Options,
-		), nil
+			options,
+		)
 	case chains.Solana:
-		return solana_specific.NewSolanaChainSpecificObject(
+		return specific.NewSolanaChainSpecificObject(
 			ctx,
 			configuredChain,
-			conf.Id,
+			upstream.GetId(),
 			upstreamConnectorsInfo.internalRequestConnector,
-			conf.Options,
-		), nil
+			options,
+		)
+	case chains.Bitcoin:
+		return specific.NewBitcoinChainSpecificObject(
+			ctx,
+			configuredChain,
+			upstream.GetId(),
+			upstreamConnectorsInfo.internalRequestConnector,
+			options,
+		)
 	default:
 		panic(fmt.Sprintf("unknown blockchain type - %s", configuredChain.Type))
 	}
@@ -266,10 +284,10 @@ func createUpstreamConnectors(
 			hook.NewStatsHook(statsService),
 		}
 		apiConnector = connectors.NewObserverConnector(configuredChain.Chain, conf.Id, apiConnector, hooks, executor)
-		if connectorConfig.GetApiConnectorType() == conf.GetHeadApiConnectorType() {
+		if connectorConfig.Type == conf.HeadConnector {
 			headConnector = apiConnector
 		}
-		if connectorConfig.GetApiConnectorType() == conf.GetBestConnector(config.DefaultMode) {
+		if connectorConfig.Type == conf.GetBestConnector(config.DefaultMode) {
 			internalRequestConnector = apiConnector
 		}
 		apiConnectors = append(apiConnectors, apiConnector)

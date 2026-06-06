@@ -31,7 +31,7 @@ func TestBaseUpstreamStart_WithoutProcessors_PublishesAvailableState(t *testing.
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 	expectedState := protocol.DefaultUpstreamState(
 		mustNewUpstreamMethods(t, nil),
 		mapset.NewThreadUnsafeSet[protocol.Cap](),
@@ -69,7 +69,7 @@ func TestBaseUpstreamProcessStateEvents_UpdatesHeadState(t *testing.T) {
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	headData := protocol.NewBlockWithHeight(123)
 	emit(&protocol.HeadUpstreamStateEvent{HeadData: headData})
@@ -93,7 +93,7 @@ func TestBaseUpstreamProcessStateEvents_UpdatesBlockState(t *testing.T) {
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	blockData := protocol.NewBlockWithHeight(456)
 	emit(&protocol.BlockUpstreamStateEvent{Block: blockData, BlockType: protocol.FinalizedBlock})
@@ -117,7 +117,7 @@ func TestBaseUpstreamProcessStateEvents_IgnoresDuplicateBlockState(t *testing.T)
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	blockData := protocol.NewBlockWithHeight(456)
 	blockEvent := &protocol.BlockUpstreamStateEvent{Block: blockData, BlockType: protocol.FinalizedBlock}
@@ -145,7 +145,7 @@ func TestBaseUpstreamProcessStateEvents_UpdatesLowerBoundsState(t *testing.T) {
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	bound := protocol.LowerBoundData{Type: protocol.SlotBound, Bound: 789, Timestamp: time.Now().Unix()}
 	emit(&protocol.LowerBoundUpstreamStateEvent{Data: bound})
@@ -169,7 +169,7 @@ func TestBaseUpstreamProcessStateEvents_IgnoresDuplicateLowerBoundsState(t *test
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	bound := protocol.LowerBoundData{Type: protocol.SlotBound, Bound: 789, Timestamp: time.Now().Unix()}
 	boundEvent := &protocol.LowerBoundUpstreamStateEvent{Data: bound}
@@ -197,7 +197,7 @@ func TestBaseUpstreamProcessStateEvents_UpdatesLabelsState(t *testing.T) {
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	emit(&protocol.LabelsUpstreamStateEvent{Labels: lo.T2("region", "us-east-1")})
 
@@ -220,7 +220,7 @@ func TestBaseUpstreamProcessStateEvents_IgnoresDuplicateStatusState(t *testing.T
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	emit(&protocol.StatusUpstreamStateEvent{Status: protocol.Available})
 
@@ -242,7 +242,7 @@ func TestBaseUpstreamProcessStateEvents_IgnoresDuplicateLabelsState(t *testing.T
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	labelEvent := &protocol.LabelsUpstreamStateEvent{Labels: lo.T2("region", "us-east-1")}
 
@@ -270,7 +270,7 @@ func TestBaseUpstreamProcessStateEvents_DuplicateHeadStateStillPublishes(t *test
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	headData := protocol.NewBlockWithHeight(123)
 	headEvent := &protocol.HeadUpstreamStateEvent{HeadData: headData}
@@ -299,7 +299,7 @@ func TestBaseUpstreamProcessStateEvents_AddsWsCapOnConnected(t *testing.T) {
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	emit(&protocol.SubscribeUpstreamStateEvent{State: protocol.WsConnected})
 
@@ -321,7 +321,7 @@ func TestBaseUpstreamProcessStateEvents_IgnoresDuplicateWsConnectedState(t *test
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	wsConnectedEvent := &protocol.SubscribeUpstreamStateEvent{State: protocol.WsConnected}
 
@@ -347,7 +347,7 @@ func TestBaseUpstreamProcessStateEvents_RemovesWsCapOnDisconnected(t *testing.T)
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	emit(&protocol.SubscribeUpstreamStateEvent{State: protocol.WsConnected})
 	_ = nextUpstreamEvent(t, sub)
@@ -372,7 +372,7 @@ func TestBaseUpstreamProcessStateEvents_IgnoresDuplicateWsDisconnectedState(t *t
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	emit(&protocol.SubscribeUpstreamStateEvent{State: protocol.WsConnected})
 	_ = nextUpstreamEvent(t, sub)
@@ -400,7 +400,7 @@ func TestBaseUpstreamProcessStateEvents_FatalErrorSuppressesStateUntilValid(t *t
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	emit(&protocol.FatalErrorUpstreamStateEvent{})
 	event := nextUpstreamEvent(t, sub)
@@ -435,7 +435,7 @@ func TestBaseUpstreamProcessStateEvents_IgnoresDuplicateFatalErrorState(t *testi
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	emit(&protocol.FatalErrorUpstreamStateEvent{})
 	event := nextUpstreamEvent(t, sub)
@@ -461,7 +461,7 @@ func TestBaseUpstreamProcessStateEvents_IgnoresDuplicateValidState(t *testing.T)
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	emit(&protocol.ValidUpstreamStateEvent{})
 	assertNoUpstreamEvent(t, sub)
@@ -482,7 +482,7 @@ func TestBaseUpstreamProcessStateEvents_IgnoresDuplicateValidStateAfterRecovery(
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	emit(&protocol.FatalErrorUpstreamStateEvent{})
 	event := nextUpstreamEvent(t, sub)
@@ -516,7 +516,7 @@ func TestBaseUpstreamBanMethod_BansAndUnbansMethod(t *testing.T) {
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 	expectedInitialState := protocol.DefaultUpstreamState(
 		mustNewUpstreamMethods(t, upConfig.Methods),
 		mapset.NewThreadUnsafeSet[protocol.Cap](),
@@ -561,7 +561,7 @@ func TestBaseUpstreamBanMethod_IgnoresEnabledMethod(t *testing.T) {
 
 	t.Cleanup(upstream.Stop)
 
-	startUpstream(t, upstream, sub)
+	upstream.Start()
 
 	upstream.BanMethod("eth_call")
 
@@ -570,14 +570,14 @@ func TestBaseUpstreamBanMethod_IgnoresEnabledMethod(t *testing.T) {
 }
 
 func TestBaseUpstreamGetConnector_ReturnsMatchingConnector(t *testing.T) {
-	httpConnector := mocks.NewConnectorMockWithType(specs.JsonRpcConnector)
-	wsConnector := mocks.NewConnectorMockWithType(specs.WebsocketConnector)
+	httpConnector := mocks.NewConnectorMockWithType(protocol.JsonRpcConnector)
+	wsConnector := mocks.NewConnectorMockWithType(protocol.WsConnector)
 
 	upstream, _, _ := newTestBaseUpstream(t, nil, []*mocks.ConnectorMock{httpConnector, wsConnector}, nil)
 
-	assert.Same(t, httpConnector, upstream.GetConnector(specs.JsonRpcConnector))
-	assert.Same(t, wsConnector, upstream.GetConnector(specs.WebsocketConnector))
-	assert.Nil(t, upstream.GetConnector(specs.RestConnector))
+	assert.Same(t, httpConnector, upstream.GetConnector(protocol.JsonRpcConnector))
+	assert.Same(t, wsConnector, upstream.GetConnector(protocol.WsConnector))
+	assert.Nil(t, upstream.GetConnector(protocol.RestConnector))
 }
 
 func TestBaseUpstreamUpdateHead_DelegatesToHeadProcessor(t *testing.T) {
@@ -661,7 +661,7 @@ func newTestBaseUpstream(
 		upConfig = newUpstreamConfig(&config.MethodsConfig{BanDuration: 20 * time.Millisecond})
 	}
 
-	upstreamMethods, err := methods.NewUpstreamMethods("eth", upConfig.Methods, nil)
+	upstreamMethods, err := methods.NewUpstreamMethods("eth", upConfig.Methods)
 	require.NoError(t, err)
 
 	state := utils.NewAtomic[protocol.UpstreamState]()
@@ -713,18 +713,6 @@ func newUpstreamConfig(methodsConfig *config.MethodsConfig) *config.Upstream {
 	}
 }
 
-// startUpstream calls upstream.Start() and drains the InitUpstreamStateEvent
-// that Start emits at the end of its lifecycle to announce the upstream's
-// initial state to subscribers. Tests that exercise post-Start event flows
-// use this so the announcement doesn't masquerade as their expected event.
-func startUpstream(t *testing.T, upstream *upstreams.BaseUpstream, sub *utils.Subscription[protocol.UpstreamEvent]) {
-	t.Helper()
-	upstream.Start()
-	event := nextUpstreamEvent(t, sub)
-	_, ok := event.EventType.(*protocol.StateUpstreamEvent)
-	require.Truef(t, ok, "expected initial StateUpstreamEvent after Start, got: %T", event.EventType)
-}
-
 func nextUpstreamEvent(t *testing.T, sub *utils.Subscription[protocol.UpstreamEvent]) protocol.UpstreamEvent {
 	t.Helper()
 
@@ -752,6 +740,8 @@ func assertHeadEventMatches(t *testing.T, event protocol.UpstreamEvent, expected
 	require.True(t, ok)
 	assert.Equal(t, expected.Status, headEvent.Status)
 	assert.True(t, expected.HeadData.Equals(headEvent.Head))
+	require.NotNil(t, headEvent.State)
+	assertUpstreamStateMatches(t, expected, *headEvent.State)
 }
 
 func assertUpstreamStateMatches(t *testing.T, expected, actual protocol.UpstreamState) {
@@ -796,7 +786,7 @@ func mustNewUpstreamMethods(t *testing.T, methodsConfig *config.MethodsConfig) m
 		methodsConfig = &config.MethodsConfig{}
 	}
 
-	upstreamMethods, err := methods.NewUpstreamMethods("eth", methodsConfig, nil)
+	upstreamMethods, err := methods.NewUpstreamMethods("eth", methodsConfig)
 	require.NoError(t, err)
 	return upstreamMethods
 }

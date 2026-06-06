@@ -58,7 +58,8 @@ func (u *BaseUpstream) processStateEvents(ctx context.Context, initialValid bool
 				state.UpstreamMethods = u.newUpstreamMethods(bannedMethods)
 			case *protocol.HeadUpstreamStateEvent:
 				state = stateEvent.ProcessEvent(state)
-				eventType = &protocol.HeadUpstreamEvent{Status: state.Status, Head: state.HeadData}
+				stateForEvent := state
+				eventType = &protocol.HeadUpstreamEvent{Status: state.Status, Head: state.HeadData, State: &stateForEvent}
 			default:
 				if stateEvent.Same(state) {
 					continue

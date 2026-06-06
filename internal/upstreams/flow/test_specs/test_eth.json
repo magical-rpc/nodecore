@@ -1,13 +1,11 @@
 {
   "openrpc": "1.0.0",
   "info": {
-    "title": "Ethereum Test JSON-RPC methods",
+    "title": "Ethereum JSON-RPC methods",
     "version": "1.0.0"
   },
   "spec": {
-    "api-connectors": ["json-rpc", "websocket"],
-    "name": "eth",
-    "type": "plain"
+    "name": "eth"
   },
   "methods": [
     {
